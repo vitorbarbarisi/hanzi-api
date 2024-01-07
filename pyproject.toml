@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "hanziapp"
+version = "0.1.0"
+description = "CRUD for hanzi characters"
+authors = ["Vitor Barbarisi"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+toolz = "0.11.1"
+fastapi = "0.103.2"
+databases = {version = "^0.4.3", extras = ["postgresql"]}
+uvicorn = "^0.25.0"
+python-dotenv = "^1.0.0"
+pydantic-settings = "^2.1.0"
+psycopg2-binary = "^2.9.9"
+redis = "^5.0.1"
+
+[tool.poetry.scripts]
+web_server = "scripts:web_server"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

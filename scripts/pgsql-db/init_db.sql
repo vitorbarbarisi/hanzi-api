@@ -1,0 +1,1 @@
+CREATE DATABASE hanzi_dev;
