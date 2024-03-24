@@ -6,7 +6,7 @@ from hanziapp.core.hanzi.entities.hanzi import (
     Hanzi,
     UpdateHanziDto,
 )
-from hanziapp.infra.cache.memory import cache
+from hanziapp.infra.cache.redis import cache
 
 cache_hits = 0
 cache_misses = 0

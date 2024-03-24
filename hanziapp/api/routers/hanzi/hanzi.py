@@ -8,7 +8,6 @@ from hanziapp.api.container import get_dependencies
 from hanziapp.core.hanzi.entities.hanzi import (
     CreateHanziDto,
     Hanzi,
-    UpdateHanziDto,
 )
 from hanziapp.core.hanzi.services import hanzi_service
 from hanziapp.infra.database.sqlalchemy import database

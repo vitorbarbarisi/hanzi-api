@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     WEB_SERVER_HOST: str = Field('webserverhost', validate_default=False)
     WEB_SERVER_PORT: int = Field('webserverport', validate_default=False)
     WEB_SERVER_RELOAD: bool = Field('webserverreload', validate_default=False)
+    WEB_SERVER_CONCURRENCY: int = Field('webserverconcurrency', validate_default=False)
 
 
 def _configure_initial_settings() -> Callable[[], Settings]:

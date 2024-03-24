@@ -18,4 +18,5 @@ def start_web_server() -> None:
         port=settings.WEB_SERVER_PORT,
         reload=settings.WEB_SERVER_RELOAD,
         log_level=settings.LOG_LEVEL,
+        # workers=settings.WEB_SERVER_CONCURRENCY,
     )
