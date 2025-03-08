@@ -1,7 +1,7 @@
-FROM python:3.8.1-alpine as development
+FROM python:3.9.7-alpine as development
 
 # Set environment variables
-ENV PYTHON_VERSION=3.8.1 \
+ENV PYTHON_VERSION=3.9.7 \
   APP_PATH=/home/python/app \
   POETRY_VIRTUALENVS_CREATE=false \
   PATH=/home/python/.local/lib/python3.8/site-packages:/usr/local/bin:/home/python:/home/python/app/bin:$PATH

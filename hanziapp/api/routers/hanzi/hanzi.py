@@ -29,7 +29,6 @@ router = APIRouter()
 async def create(dto: CreateHanziDto):
     return await hanzi_service.create(repo, dto)
 
-
 @router.get(
     "/{character}",
     response_class=JSONResponse,
