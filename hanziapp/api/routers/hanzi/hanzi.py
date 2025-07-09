@@ -1,5 +1,6 @@
 from typing import List
 
+from fastapi import BackgroundTasks
 from fastapi.param_functions import Depends
 from fastapi.responses import JSONResponse  # type: ignore
 from fastapi.routing import APIRouter
@@ -40,8 +41,12 @@ async def create(dto: CreateHanziDto):
     },
 )
 @database.transaction()
-async def get(character: str):
+async def get(character: str, background_tasks: BackgroundTasks):
     item = await hanzi_service.get(repo, character)
     if not item:
         return JSONResponse(content={"description": "Hanzi not found"}, status_code=404)
+    
+    # Add background task to increment count using domain service
+    background_tasks.add_task(hanzi_service.increment_count, repo, character)
+    
     return item

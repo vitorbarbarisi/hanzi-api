@@ -24,6 +24,22 @@ async def get(repo: HanziRepo, character: str) -> Optional[Hanzi]:
     #     await repo.update(UpdateHanziDto(calls=result.calls + 1 or 1), result.character)
     return result
 
+async def increment_count(repo: HanziRepo, character: str) -> bool:
+    """
+    Domain service to increment the count of a hanzi character
+    Returns True if successful, False otherwise
+    """
+    try:
+        hanzi = await repo.fetch(character)
+        if hanzi:
+            await repo.update(UpdateHanziDto(calls=hanzi.calls + 1), character)
+            return True
+        return False
+    except Exception as e:
+        # Log error but don't propagate - this is a background operation
+        print(f"Error incrementing count for character '{character}': {e}")
+        return False
+
 @celery_app.task
 async def enrich_hanzi(repo: HanziRepo, hanzi: Hanzi) -> None:
     hanzi.meaning = "meaning"

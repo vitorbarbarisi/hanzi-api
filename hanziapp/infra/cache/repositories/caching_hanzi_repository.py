@@ -32,4 +32,17 @@ async def persist(dto: CreateHanziDto) -> Hanzi:
 async def update(
     dto: UpdateHanziDto, character: str
 ) -> Optional[Hanzi]:
-    return await DatabaseHanziRepo.update(dto, character)
+    # Invalidate cache before updating
+    if character in memory_cache:
+        del memory_cache[character]
+    
+    result = await DatabaseHanziRepo.update(dto, character)
+    
+    # Update cache with fresh data
+    if result:
+        memory_cache[character] = result.to_json()
+    
+    return result
+
+async def list() -> Iterable[Hanzi]:
+    return await DatabaseHanziRepo.list()

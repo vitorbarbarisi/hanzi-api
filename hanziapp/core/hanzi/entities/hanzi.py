@@ -39,11 +39,11 @@ class Hanzi(BaseModel):
 
 
 class UpdateHanziDto(BaseModel):
-    calls: int
-    meaning: str
-    decomposition: str
-    etymology: str
-    related_words: str
+    calls: Optional[int] = None
+    meaning: Optional[str] = None
+    decomposition: Optional[str] = None
+    etymology: Optional[str] = None
+    related_words: Optional[str] = None
 
     class Config:
         allow_mutation = False
