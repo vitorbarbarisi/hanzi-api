@@ -21,8 +21,7 @@ WORKDIR /home/python/app
 # Copy project file and pre-install
 COPY README.md .
 COPY pyproject.toml .
-COPY poetry.lock .
-RUN poetry install
+RUN poetry lock && poetry install
 
 # Expose ports
 EXPOSE 5000

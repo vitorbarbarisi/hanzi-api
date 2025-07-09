@@ -19,10 +19,6 @@ def init_databases(app: FastAPI) -> FastAPI:
     init_pgsql_db()    
     return app
 
-def init_redis(app: FastAPI) -> FastAPI:
-    
-    return app
-
 
 def register_events(app: FastAPI) -> FastAPI:
     @app.on_event("startup")
@@ -44,7 +40,6 @@ def init_app(settings: Settings) -> FastAPI:
         settings,
         create_instance,
         init_databases,
-        init_redis,
         register_events,
         register_middlewares,
         register_routers,

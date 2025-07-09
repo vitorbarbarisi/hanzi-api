@@ -6,20 +6,22 @@ from hanziapp.core.hanzi.entities.hanzi import (
     Hanzi,
     UpdateHanziDto,
 )
-from hanziapp.infra.cache.redis import cache
+
+# Cache em memória usando dicionário Python
+memory_cache = {}
 
 cache_hits = 0
 cache_misses = 0
 
 async def fetch(character: str) -> Optional[Hanzi]:
     global cache_hits, cache_misses
-    result = cache.get(character)
+    result = memory_cache.get(character)
     if result is None:
         hanzi = await DatabaseHanziRepo.fetch(character)
         cache_misses += 1
         if not hanzi:
             return None
-        cache.set(character, hanzi.to_json())
+        memory_cache[character] = hanzi.to_json()
         return hanzi    
     cache_hits += 1
     return Hanzi.from_json(result)

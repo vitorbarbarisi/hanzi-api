@@ -10,8 +10,6 @@ class Settings(BaseSettings):
     PYTHONPATH: str = Field('pythonpath', validate_default=False)
     LOG_LEVEL: str = Field('loglevel', validate_default=False)
     DATABASE_PG_URL: PostgresDsn = Field('databasepgurl', validate_default=False)
-    REDIS_HOST: str = Field('redishost', validate_default=False)
-    REDIS_PORT: str = Field('redisport', validate_default=False)
     WEB_APP_DEBUG: bool = Field('webappdebug', validate_default=False)
     WEB_APP_DESCRIPTION: str = Field('webappdescription', validate_default=False)
     WEB_APP_TITLE: str = Field('webapptitle', validate_default=False)
