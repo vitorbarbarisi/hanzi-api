@@ -24,6 +24,17 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Função para detectar comando Docker Compose
+detect_docker_compose() {
+    if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        echo "docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    else
+        echo ""
+    fi
+}
+
 # Verificar se está executando como root
 if [[ $EUID -eq 0 ]]; then
    print_error "Este script não deve ser executado como root. Execute sem sudo."
@@ -43,11 +54,20 @@ if ! command -v systemctl &> /dev/null; then
     exit 1
 fi
 
-# Verificar se docker-compose está disponível
-if ! command -v docker-compose &> /dev/null; then
-    print_error "docker-compose não encontrado. Por favor, instale o Docker Compose primeiro."
+# Detectar Docker Compose
+DOCKER_COMPOSE_CMD=$(detect_docker_compose)
+if [ -z "$DOCKER_COMPOSE_CMD" ]; then
+    print_error "Docker Compose não encontrado."
+    echo ""
+    echo "Por favor, instale uma das opções:"
+    echo "  1. Docker Compose v2 (integrado): sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin"
+    echo "  2. Docker Compose standalone: sudo apt install docker-compose"
+    echo "  3. Via pip: pip install docker-compose"
+    echo "  4. Download direto: curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m) -o /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
     exit 1
 fi
+
+print_status "Docker Compose detectado: $DOCKER_COMPOSE_CMD"
 
 # Obter diretório atual do projeto
 PROJECT_DIR="$(pwd)"
@@ -65,9 +85,14 @@ if ! docker info &> /dev/null; then
     exit 1
 fi
 
-# Obter caminho do docker-compose
-DOCKER_COMPOSE_PATH=$(which docker-compose)
-print_status "Caminho do docker-compose: $DOCKER_COMPOSE_PATH"
+# Obter caminho completo do comando
+if [ "$DOCKER_COMPOSE_CMD" = "docker compose" ]; then
+    DOCKER_COMPOSE_PATH="$(which docker) compose"
+else
+    DOCKER_COMPOSE_PATH="$(which docker-compose)"
+fi
+
+print_status "Comando Docker Compose: $DOCKER_COMPOSE_PATH"
 
 # Nome do serviço
 SERVICE_NAME="hanzi-api"
@@ -76,6 +101,17 @@ SERVICE_NAME="hanzi-api"
 TEMP_SERVICE_FILE="/tmp/${SERVICE_NAME}.service"
 
 print_status "Criando arquivo de serviço..."
+
+# Criar comandos baseados no tipo de compose
+if [ "$DOCKER_COMPOSE_CMD" = "docker compose" ]; then
+    START_CMD="docker compose up -d"
+    STOP_CMD="docker compose down"
+    RESTART_CMD="docker compose restart"
+else
+    START_CMD="docker-compose up -d"
+    STOP_CMD="docker-compose down"
+    RESTART_CMD="docker-compose restart"
+fi
 
 cat > "$TEMP_SERVICE_FILE" << EOF
 [Unit]
@@ -88,9 +124,9 @@ After=docker.service network.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$PROJECT_DIR
-ExecStart=$DOCKER_COMPOSE_PATH up -d
-ExecStop=$DOCKER_COMPOSE_PATH down
-ExecReload=$DOCKER_COMPOSE_PATH restart
+ExecStart=/bin/bash -c 'cd $PROJECT_DIR && $START_CMD'
+ExecStop=/bin/bash -c 'cd $PROJECT_DIR && $STOP_CMD'
+ExecReload=/bin/bash -c 'cd $PROJECT_DIR && $RESTART_CMD'
 TimeoutStartSec=300
 TimeoutStopSec=300
 User=$USER
@@ -154,6 +190,9 @@ echo "  🔄 Reiniciar serviço:    sudo systemctl restart ${SERVICE_NAME}"
 echo "  📋 Ver logs:             sudo journalctl -u ${SERVICE_NAME} -f"
 echo "  ❌ Desabilitar auto-start: sudo systemctl disable ${SERVICE_NAME}"
 echo "  🗑️  Remover serviço:      sudo systemctl disable ${SERVICE_NAME} && sudo rm /etc/systemd/system/${SERVICE_NAME}.service"
+echo ""
+echo "Docker Compose detectado: $DOCKER_COMPOSE_CMD"
+echo "Comando usado: $START_CMD"
 echo ""
 print_status "O serviço irá iniciar automaticamente no próximo boot da VM."
 print_warning "Para testar, reinicie a VM com: sudo reboot" 

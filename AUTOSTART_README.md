@@ -6,8 +6,32 @@ Este diretório contém scripts para configurar o auto-start do Hanzi API usando
 
 - ✅ Sistema Linux com systemd
 - ✅ Docker instalado e rodando
-- ✅ Docker Compose instalado
+- ✅ Docker Compose instalado (v1 ou v2)
 - ✅ Permissões sudo
+
+## 🐳 Compatibilidade Docker Compose
+
+O script **detecta automaticamente** e funciona com:
+
+- **Docker Compose v2** (integrado): `docker compose`
+- **Docker Compose v1** (standalone): `docker-compose`
+
+### Instalação Docker Compose:
+
+```bash
+# Opção 1: Docker Compose v2 (recomendado)
+sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Opção 2: Docker Compose standalone
+sudo apt install docker-compose
+
+# Opção 3: Via pip
+pip install docker-compose
+
+# Opção 4: Download direto
+curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+```
 
 ## 🔧 Instalação
 
@@ -20,7 +44,8 @@ Este diretório contém scripts para configurar o auto-start do Hanzi API usando
 ### 2. O script irá:
 
 - ✅ Verificar pré-requisitos
-- ✅ Criar serviço systemd
+- ✅ **Detectar automaticamente** `docker compose` ou `docker-compose`
+- ✅ Criar serviço systemd otimizado
 - ✅ Habilitar auto-start
 - ✅ Opcionalmente iniciar o serviço agora
 
@@ -54,6 +79,9 @@ systemctl is-active hanzi-api
 
 # Ver containers rodando
 docker ps
+
+# Verificar qual versão do Compose está sendo usada
+docker compose version || docker-compose --version
 ```
 
 ## 🗑️ Desinstalação
@@ -80,6 +108,20 @@ sudo systemctl status docker
 
 # Verificar se arquivo compose existe
 ls -la docker-compose.yml
+
+# Testar comando manualmente
+docker compose up -d || docker-compose up -d
+```
+
+### Docker Compose não encontrado:
+```bash
+# Verificar instalação
+docker compose version
+docker-compose --version
+
+# Verificar PATH
+echo $PATH
+which docker-compose
 ```
 
 ### Resetar serviço:
@@ -100,6 +142,7 @@ sudo systemctl daemon-reload
 ## 🌟 Features
 
 - **✅ Auto-start**: Inicia automaticamente no boot
+- **✅ Detecção automática**: Funciona com `docker compose` e `docker-compose`
 - **✅ Logs**: Integrado com journald
 - **✅ Robusto**: Aguarda Docker estar disponível
 - **✅ Seguro**: Roda com usuário não-root
@@ -108,10 +151,12 @@ sudo systemctl daemon-reload
 
 ## 📝 Notas
 
+- O script detecta automaticamente qual versão do Docker Compose usar
 - O serviço aguarda o Docker estar disponível antes de iniciar
 - Todos os logs são enviados para journald
 - O serviço roda com as permissões do usuário atual
 - Timeouts de 5 minutos para start/stop
+- Compatível com Docker Compose v1 e v2
 
 ## 🆘 Suporte
 
@@ -120,4 +165,5 @@ Se encontrar problemas:
 1. Verifique os logs: `sudo journalctl -u hanzi-api -f`
 2. Verifique se Docker está rodando: `docker ps`
 3. Verifique se o arquivo compose existe: `ls -la docker-compose.yml`
-4. Teste manualmente: `docker-compose up -d` 
+4. Teste manualmente: `docker compose up -d` ou `docker-compose up -d`
+5. Verifique qual versão do Compose está instalada: `docker compose version || docker-compose --version` 
