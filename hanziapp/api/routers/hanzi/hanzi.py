@@ -40,7 +40,6 @@ async def create(dto: CreateHanziDto):
         404: {"description": "Hanzi not found"},
     },
 )
-@database.transaction()
 async def get(character: str, background_tasks: BackgroundTasks):
     item = await hanzi_service.get(repo, character)
     if not item:

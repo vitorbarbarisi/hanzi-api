@@ -8,8 +8,16 @@ from hanziapp.config.environment import get_settings
 
 _SETTINGS = get_settings()
 
+# Configure database with connection pool settings
+database = databases.Database(
+    str(_SETTINGS.DATABASE_PG_URL),
+    min_size=5,    # Minimum connections in pool
+    max_size=20,   # Maximum connections in pool
+    max_queries=50000,  # Maximum queries per connection
+    max_inactive_connection_lifetime=300,  # 5 minutes
+    force_rollback=True,  # Force rollback on connection return
+)
 
-database = databases.Database(str(_SETTINGS.DATABASE_PG_URL))
 metadata = MetaData(
     naming_convention={
         "ix": "ix_%(column_0_label)s",
