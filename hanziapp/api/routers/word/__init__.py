@@ -1,0 +1,3 @@
+from .word import router
+
+__all__ = ("router",)

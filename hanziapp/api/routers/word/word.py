@@ -1,0 +1,52 @@
+from typing import List
+
+from fastapi import BackgroundTasks
+from fastapi.param_functions import Depends
+from fastapi.responses import JSONResponse  # type: ignore
+from fastapi.routing import APIRouter
+
+from hanziapp.api.container import get_dependencies
+from hanziapp.core.word.entities.word import (
+    CreateWordDto,
+    Word,
+)
+from hanziapp.core.word.services import word_service
+from hanziapp.infra.database.sqlalchemy import database
+
+
+repo = get_dependencies().word_repo
+router = APIRouter()
+
+
+# Handlers
+@router.post(
+    "/",
+    response_class=JSONResponse,
+    response_model=Word,
+    status_code=201,
+    responses={201: {"description": "Word created"}},
+)
+@database.transaction()
+async def create(dto: CreateWordDto):
+    return await word_service.create(repo, dto)
+
+
+@router.get(
+    "/{word}",
+    response_class=JSONResponse,
+    response_model=Word,
+    status_code=200,
+    responses={
+        200: {"description": "Word found"},
+        404: {"description": "Word not found"},
+    },
+)
+async def get(word: str, background_tasks: BackgroundTasks):
+    item = await word_service.get(repo, word)
+    if not item:
+        return JSONResponse(content={"description": "Word not found"}, status_code=404)
+    
+    # Add background task to increment count using domain service
+    background_tasks.add_task(word_service.increment_count, repo, word)
+    
+    return item

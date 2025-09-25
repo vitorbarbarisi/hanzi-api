@@ -15,7 +15,7 @@ database = databases.Database(
     max_size=20,   # Maximum connections in pool
     max_queries=50000,  # Maximum queries per connection
     max_inactive_connection_lifetime=300,  # 5 minutes
-    force_rollback=True,  # Force rollback on connection return
+    force_rollback=False,  # Allow commits to persist data
 )
 
 metadata = MetaData(
