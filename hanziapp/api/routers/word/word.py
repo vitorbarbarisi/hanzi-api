@@ -12,10 +12,29 @@ from hanziapp.core.word.entities.word import (
 )
 from hanziapp.core.word.services import word_service
 from hanziapp.infra.database.sqlalchemy import database
+from hanziapp.api.routers.word.segmentation import router as segmentation_router
 
 
 repo = get_dependencies().word_repo
 router = APIRouter()
+
+# Include segmentation router
+router.include_router(segmentation_router)
+
+
+# Health check endpoint
+@router.get(
+    "/health",
+    response_class=JSONResponse,
+    status_code=200,
+    responses={200: {"description": "API is healthy"}},
+)
+async def health_check():
+    """Health check endpoint to verify if the API is running."""
+    return JSONResponse(
+        content={"status": "healthy", "message": "Word API is running"},
+        status_code=200
+    )
 
 
 # Handlers
