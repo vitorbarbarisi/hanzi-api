@@ -12,14 +12,11 @@ from hanziapp.core.word.entities.word import (
 )
 from hanziapp.core.word.services import word_service
 from hanziapp.infra.database.sqlalchemy import database
-from hanziapp.api.routers.word.segmentation import router as segmentation_router
 
 
 repo = get_dependencies().word_repo
 router = APIRouter()
 
-# Include segmentation router
-router.include_router(segmentation_router)
 
 
 # Health check endpoint
