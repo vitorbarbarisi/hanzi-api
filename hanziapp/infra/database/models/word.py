@@ -12,5 +12,6 @@ Word = Table(
     Column("translation", String, nullable=False),
     Column("calls", Integer, default=0),
     Column("confidence_level", Integer, nullable=False),
+    Column("tone_pair", Integer, nullable=True),
     CheckConstraint("confidence_level >= 1 AND confidence_level <= 3", name="confidence_level_range"),
 )
