@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, validator
 
@@ -124,3 +124,23 @@ class UpdateWordDto(BaseModel):
 
     class Config:
         allow_mutation = False
+
+
+class WordWithTranslations(BaseModel):
+    word: str
+    pinyin: str
+    translation: str
+    calls: int = Field(default=0)
+    confidence_level: int
+    tone_pair: Optional[int] = None
+    translations: List[str] = Field(default_factory=list)
+
+    @validator('confidence_level')
+    def validate_confidence_level(cls, v):
+        if v < 1 or v > 3:
+            raise ValueError('confidence_level must be between 1 and 3')
+        return v
+
+    class Config:
+        allow_mutation = False
+        orm_mode = True

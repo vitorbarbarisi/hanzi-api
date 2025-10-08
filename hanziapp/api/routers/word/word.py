@@ -9,6 +9,7 @@ from hanziapp.api.container import get_dependencies
 from hanziapp.core.word.entities.word import (
     CreateWordDto,
     Word,
+    WordWithTranslations,
 )
 from hanziapp.core.word.entities.word_translation import (
     CreateWordTranslationRequestDto,
@@ -56,7 +57,7 @@ async def create(dto: CreateWordDto):
 @router.get(
     "/{word}",
     response_class=JSONResponse,
-    response_model=Word,
+    response_model=WordWithTranslations,
     status_code=200,
     responses={
         200: {"description": "Word found"},
@@ -64,7 +65,7 @@ async def create(dto: CreateWordDto):
     },
 )
 async def get(word: str, background_tasks: BackgroundTasks):
-    item = await word_service.get(repo, word)
+    item = await word_service.get_with_translations(repo, word_translation_repo, word)
     if not item:
         return JSONResponse(content={"description": "Word not found"}, status_code=404)
     

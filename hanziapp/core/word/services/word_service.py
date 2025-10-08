@@ -4,8 +4,9 @@ from hanziapp.core.word.entities.word import (
     CreateWordDto,
     Word,
     UpdateWordDto,
+    WordWithTranslations,
 )
-from hanziapp.core.word.protocols import WordRepo
+from hanziapp.core.word.protocols import WordRepo, WordTranslationRepo
 
 
 async def create(
@@ -57,3 +58,34 @@ async def increment_count(repo: WordRepo, word: str) -> bool:
             else:
                 print(f"Failed to increment count for word '{word}' after {max_retries} attempts")
                 return False
+
+
+async def get_with_translations(
+    word_repo: WordRepo, 
+    translation_repo: WordTranslationRepo, 
+    word: str
+) -> Optional[WordWithTranslations]:
+    """
+    Get word with all its translations
+    """
+    word_obj = await get(word_repo, word)
+    if not word_obj:
+        return None
+    
+    # Get all translations for this word
+    from hanziapp.core.word.services import word_translation_service
+    translations = await word_translation_service.get_translations_by_word(translation_repo, word)
+    
+    # Extract just the translation strings
+    translation_strings = [t.translation for t in translations]
+    
+    # Create WordWithTranslations object
+    return WordWithTranslations(
+        word=word_obj.word,
+        pinyin=word_obj.pinyin,
+        translation=word_obj.translation,
+        calls=word_obj.calls,
+        confidence_level=word_obj.confidence_level,
+        tone_pair=word_obj.tone_pair,
+        translations=translation_strings
+    )
