@@ -10,11 +10,17 @@ from hanziapp.core.word.entities.word import (
     CreateWordDto,
     Word,
 )
-from hanziapp.core.word.services import word_service
+from hanziapp.core.word.entities.word_translation import (
+    CreateWordTranslationRequestDto,
+    CreateWordTranslationDto,
+    WordTranslation,
+)
+from hanziapp.core.word.services import word_service, word_translation_service
 from hanziapp.infra.database.sqlalchemy import database
 
 
 repo = get_dependencies().word_repo
+word_translation_repo = get_dependencies().word_translation_repo
 router = APIRouter()
 
 
@@ -66,3 +72,45 @@ async def get(word: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(word_service.increment_count, repo, word)
     
     return item
+
+
+@router.put(
+    "/{word}/translations",
+    response_class=JSONResponse,
+    response_model=WordTranslation,
+    status_code=201,
+    responses={
+        201: {"description": "Translation added successfully"},
+        404: {"description": "Word not found"},
+    },
+)
+@database.transaction()
+async def add_translation(word: str, dto: CreateWordTranslationRequestDto):
+    # Verify if word exists
+    word_obj = await word_service.get(repo, word)
+    if not word_obj:
+        return JSONResponse(content={"description": "Word not found"}, status_code=404)
+    
+    # Create new DTO with the word from the URL parameter
+    new_dto = CreateWordTranslationDto(word=word, translation=dto.translation)
+    
+    return await word_translation_service.add_translation(word_translation_repo, new_dto)
+
+
+@router.get(
+    "/{word}/translations",
+    response_class=JSONResponse,
+    response_model=List[WordTranslation],
+    status_code=200,
+    responses={
+        200: {"description": "Translations found"},
+        404: {"description": "Word not found"},
+    },
+)
+async def get_translations(word: str):
+    # Verify if word exists
+    word_obj = await word_service.get(repo, word)
+    if not word_obj:
+        return JSONResponse(content={"description": "Word not found"}, status_code=404)
+    
+    return await word_translation_service.get_translations_by_word(word_translation_repo, word)
