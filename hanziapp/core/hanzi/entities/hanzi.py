@@ -10,7 +10,7 @@ class CreateHanziDto(BaseModel):
     calls: int = Field(default=0, init=False)
     meaning: str = Field(default="", init=False)
     decomposition: str = Field(default="", init=False)
-    etymology: str = Field(default="", init=False)
+    appears_in: str = Field(default="", init=False)
     related_words: str = Field(default="", init=False)
 
     class Config:
@@ -23,7 +23,7 @@ class Hanzi(BaseModel):
     calls: int = Field(default=0)
     meaning: str = Field(default="")
     decomposition: str = Field(default="")
-    etymology: str = Field(default="")
+    appears_in: str = Field(default="")
     related_words: str = Field(default="")
 
     class Config:
@@ -42,7 +42,7 @@ class UpdateHanziDto(BaseModel):
     calls: Optional[int] = None
     meaning: Optional[str] = None
     decomposition: Optional[str] = None
-    etymology: Optional[str] = None
+    appears_in: Optional[str] = None
     related_words: Optional[str] = None
 
     class Config:

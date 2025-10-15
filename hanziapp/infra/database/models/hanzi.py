@@ -12,7 +12,7 @@ Hanzi = Table(
     Column("calls", Integer, default=0),
     Column("meaning", String, default=""),
     Column("decomposition", String, default=""),
-    Column("etymology", String, default=""),
+    Column("appears_in", String, default=""),
     Column("related_words", String, default=""),
     CheckConstraint("length(character) = 1", name="character_length"),
 )

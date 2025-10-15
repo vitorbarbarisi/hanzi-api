@@ -66,13 +66,13 @@ async def increment_count(repo: HanziRepo, character: str) -> bool:
 async def enrich_hanzi(repo: HanziRepo, hanzi: Hanzi) -> None:
     hanzi.meaning = "meaning"
     hanzi.decomposition = "decomposition"
-    hanzi.etymology = "etymology"
+    hanzi.appears_in = "appears_in"
     hanzi.related_words = "related_words"
     await repo.update(
         UpdateHanziDto(
             meaning=hanzi.meaning,
             decomposition=hanzi.decomposition,
-            etymology=hanzi.etymology,
+            appears_in=hanzi.appears_in,
             related_words=hanzi.related_words,
         ),
         hanzi.character,

@@ -30,7 +30,7 @@ def upgrade():
             sa.Column("calls", sa.Integer, default=0),
             sa.Column("meaning", sa.String, default=""),
             sa.Column("decomposition", sa.String, default=""),
-            sa.Column("etymology", sa.String, default=""),
+            sa.Column("appears_in", sa.String, default=""),
             sa.Column("related_words", sa.String, default=""),
             sa.CheckConstraint(
                 "length(character) = 1",
