@@ -1,6 +1,6 @@
 """rename etymology to appears_in
 
-Revision ID: rename_etymology_to_appears_in
+Revision ID: a1b2c3d4e5f6
 Revises: fd4ea7c08a33
 Create Date: 2025-10-15 00:00:00.000000
 
@@ -11,7 +11,7 @@ from typing import Sequence, Union
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'rename_etymology_to_appears_in'
+revision: str = 'a1b2c3d4e5f6'
 down_revision: Union[str, None] = 'fd4ea7c08a33'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
