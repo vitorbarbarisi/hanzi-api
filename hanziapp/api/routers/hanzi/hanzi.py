@@ -34,6 +34,37 @@ async def create(dto: CreateHanziDto, background_tasks: BackgroundTasks):
     
     return result
 
+@router.put(
+    "/{character}/enrich",
+    response_class=JSONResponse,
+    status_code=202,
+    responses={
+        202: {"description": "Enrichment task started"},
+        404: {"description": "Hanzi not found"},
+    },
+)
+async def enrich(character: str, background_tasks: BackgroundTasks):
+    """Manually trigger LLM enrichment for an existing hanzi character."""
+    # Check if hanzi exists
+    existing_hanzi = await hanzi_service.get(repo, character)
+    if not existing_hanzi:
+        return JSONResponse(
+            content={"error": "Hanzi not found", "character": character}, 
+            status_code=404
+        )
+    
+    # Add background task to enrich hanzi with LLM data
+    background_tasks.add_task(hanzi_service.enrich_hanzi_background, repo, character)
+    
+    return JSONResponse(
+        content={
+            "message": "Enrichment task started", 
+            "character": character,
+            "status": "processing"
+        }, 
+        status_code=202
+    )
+
 @router.get(
     "/{character}",
     response_class=JSONResponse,
