@@ -85,17 +85,20 @@ async def enrich_hanzi_background(repo: HanziRepo, character: str) -> None:
         # Get decomposition from DeepSeek (returns JSON)
         decomposition_json = deepseek_integration.get_decomposition()
         decomposition_data = json.loads(decomposition_json)
+        decomposition = decomposition_data.get("decomposition", "")
         appears_in = decomposition_data.get("decomposition_meaning", "")
         
         print(f"Enrichment data gathered for {character}")
         print(f"Meaning: {meaning[:100]}...")
         print(f"Related words: {related_words[:100]}...")
+        print(f"Decomposition: {decomposition[:100]}...")
         print(f"Appears in: {appears_in[:100]}...")
         
         # Update hanzi record in database
         update_dto = UpdateHanziDto(
             meaning=meaning,
             related_words=related_words,
+            decomposition=decomposition,
             appears_in=appears_in,
         )
         
