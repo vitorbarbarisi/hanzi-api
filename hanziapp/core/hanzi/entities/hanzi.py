@@ -10,6 +10,7 @@ class CreateHanziDto(BaseModel):
     calls: int = Field(default=0, init=False)
     meaning: str = Field(default="", init=False)
     decomposition: str = Field(default="", init=False)
+    decomposition_meaning: str = Field(default="", init=False)
     appears_in: str = Field(default="", init=False)
     related_words: str = Field(default="", init=False)
 
@@ -23,6 +24,7 @@ class Hanzi(BaseModel):
     calls: int = Field(default=0)
     meaning: str = Field(default="")
     decomposition: str = Field(default="")
+    decomposition_meaning: str = Field(default="")
     appears_in: str = Field(default="")
     related_words: str = Field(default="")
 
@@ -42,6 +44,7 @@ class UpdateHanziDto(BaseModel):
     calls: Optional[int] = None
     meaning: Optional[str] = None
     decomposition: Optional[str] = None
+    decomposition_meaning: Optional[str] = None
     appears_in: Optional[str] = None
     related_words: Optional[str] = None
 
