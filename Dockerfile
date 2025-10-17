@@ -1,15 +1,23 @@
-FROM python:3.9.7-alpine as development
+FROM python:3.11.9-alpine3.19 as development
 
 # Set environment variables
-ENV PYTHON_VERSION=3.9.7 \
+ENV PYTHON_VERSION=3.11 \
   APP_PATH=/home/python/app \
   POETRY_VIRTUALENVS_CREATE=false \
-  PATH=/home/python/.local/lib/python3.8/site-packages:/usr/local/bin:/home/python:/home/python/app/bin:$PATH
+  PATH=/home/python/.local/lib/python3.11/site-packages:/usr/local/bin:/home/python:/home/python/app/bin:$PATH
 
-# Install and configure dependencies
-RUN apk add --no-cache build-base libressl-dev musl-dev libffi-dev postgresql-dev
-RUN pip install --upgrade pip && \
-  pip install --no-cache-dir poetry
+# Update package index and install dependencies
+RUN apk update && \
+    apk add --no-cache \
+        build-base \
+        openssl-dev \
+        libffi-dev \
+        postgresql-dev \
+        curl \
+        gcc \
+        musl-dev && \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir poetry==1.8.3
 
 # Configure user, groups and working directory for application
 RUN adduser -u 1000 -D python && \
@@ -23,11 +31,15 @@ COPY README.md .
 COPY pyproject.toml .
 RUN poetry lock && poetry install
 
+# Copy application code
+COPY hanziapp/ ./hanziapp/
+COPY scripts/ ./scripts/
+
 # Expose ports
 EXPOSE 5000
 
-# Declare volumes
-VOLUME [ "/home/python/app" ]
+# Set the Python path to include the current directory
+ENV PYTHONPATH=/home/python/app
 
-# Run the app
-CMD ["ash"]
+# Run the web server
+CMD ["python", "-c", "from hanziapp import start_web_server; start_web_server()"]

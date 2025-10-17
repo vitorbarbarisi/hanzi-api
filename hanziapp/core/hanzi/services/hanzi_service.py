@@ -6,14 +6,13 @@ from hanziapp.core.hanzi.entities.hanzi import (
     UpdateHanziDto,
 )
 from hanziapp.core.hanzi.protocols import HanziRepo
-from hanziapp.infra.broker.celery import celery_app
+from hanziapp.infra.llm import OpenAiIntegration, DeepSeekIntegration
 
 
 async def create(
     repo: HanziRepo, dto: CreateHanziDto,
 ) -> Hanzi:
     result = await repo.persist(dto)
-    # enrich_hanzi.delay(result)
     return result
 
 async def get(repo: HanziRepo, character: str) -> Optional[Hanzi]:
@@ -62,18 +61,52 @@ async def increment_count(repo: HanziRepo, character: str) -> bool:
                 print(f"Failed to increment count for character '{character}' after {max_retries} attempts")
                 return False
 
-@celery_app.task
-async def enrich_hanzi(repo: HanziRepo, hanzi: Hanzi) -> None:
-    hanzi.meaning = "meaning"
-    hanzi.decomposition = "decomposition"
-    hanzi.appears_in = "appears_in"
-    hanzi.related_words = "related_words"
-    await repo.update(
-        UpdateHanziDto(
-            meaning=hanzi.meaning,
-            decomposition=hanzi.decomposition,
-            appears_in=hanzi.appears_in,
-            related_words=hanzi.related_words,
-        ),
-        hanzi.character,
-    )
+async def enrich_hanzi_background(repo: HanziRepo, character: str) -> None:
+    """
+    Background task to enrich hanzi data using LLM integrations.
+    
+    Args:
+        repo: The HanziRepo instance
+        character: The Chinese character to enrich
+    """
+    try:
+        import json
+        
+        # Initialize LLM integrations
+        openai_integration = OpenAiIntegration(character)
+        deepseek_integration = DeepSeekIntegration(character)
+        
+        print(f"Starting LLM enrichment for character: {character}")
+        
+        # Get data from LLMs
+        meaning = openai_integration.get_meaning()
+        related_words = openai_integration.get_related_words()
+        
+        # Get decomposition from DeepSeek (returns JSON)
+        decomposition_json = deepseek_integration.get_decomposition()
+        decomposition_data = json.loads(decomposition_json)
+        appears_in = decomposition_data.get("decomposition_meaning", "")
+        
+        print(f"Enrichment data gathered for {character}")
+        print(f"Meaning: {meaning[:100]}...")
+        print(f"Related words: {related_words[:100]}...")
+        print(f"Appears in: {appears_in[:100]}...")
+        
+        # Update hanzi record in database
+        update_dto = UpdateHanziDto(
+            meaning=meaning,
+            related_words=related_words,
+            appears_in=appears_in,
+        )
+        
+        result = await repo.update(update_dto, character)
+        
+        if result:
+            print(f"Successfully enriched hanzi: {character}")
+        else:
+            print(f"Failed to update hanzi: {character} - character not found")
+            
+    except Exception as e:
+        print(f"Error enriching hanzi {character}: {str(e)}")
+        import traceback
+        traceback.print_exc()

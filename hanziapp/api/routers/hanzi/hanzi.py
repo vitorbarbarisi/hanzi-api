@@ -11,7 +11,7 @@ from hanziapp.core.hanzi.entities.hanzi import (
     Hanzi,
 )
 from hanziapp.core.hanzi.services import hanzi_service
-from hanziapp.infra.database.sqlalchemy import database
+# Using SQLAlchemy 2.x - transactions handled by repositories
 
 
 repo = get_dependencies().hanzi_repo
@@ -26,9 +26,13 @@ router = APIRouter()
     status_code=201,
     responses={201: {"description": "Hanzi created"}},
 )
-@database.transaction()
-async def create(dto: CreateHanziDto):
-    return await hanzi_service.create(repo, dto)
+async def create(dto: CreateHanziDto, background_tasks: BackgroundTasks):
+    result = await hanzi_service.create(repo, dto)
+    
+    # Add background task to enrich hanzi with LLM data
+    background_tasks.add_task(hanzi_service.enrich_hanzi_background, repo, result.character)
+    
+    return result
 
 @router.get(
     "/{character}",

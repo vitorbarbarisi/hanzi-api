@@ -1,4 +1,7 @@
-from typing import Iterable, Optional
+from typing import Optional
+
+from sqlalchemy import func, select, insert, update as sqlalchemy_update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from hanziapp.core.hanzi.entities.hanzi import (
     CreateHanziDto,
@@ -6,31 +9,42 @@ from hanziapp.core.hanzi.entities.hanzi import (
     UpdateHanziDto,
 )
 from hanziapp.infra.database.models.hanzi import Hanzi as HanziModel
-from hanziapp.infra.database.sqlalchemy import database
+from hanziapp.infra.database.sqlalchemy import get_async_session
 
 cache_hits = 0
 cache_misses = 0
 
 async def exists_by_id(character: str) -> bool:
-    query = HanziModel.count().where(HanziModel.c.character == character)
-    return bool(await database.execute(query))
+    async with get_async_session() as session:
+        query = select(func.count(HanziModel.c.character)).where(
+            HanziModel.c.character == character
+        )
+        result = await session.execute(query)
+        count = result.scalar()
+        return bool(count)
 
 
 async def fetch(character: str) -> Optional[Hanzi]:
-    query = (
-        HanziModel.select()
-        .where(HanziModel.c.character == character)
-    )
-
-    result = await database.fetch_one(query)
-    return Hanzi.parse_obj(dict(result)) if result else None
+    async with get_async_session() as session:
+        query = select(HanziModel).where(HanziModel.c.character == character)
+        result = await session.execute(query)
+        row = result.first()
+        
+        if row:
+            # Convert Row to dict for pydantic parsing
+            row_dict = dict(row._mapping)
+            return Hanzi.parse_obj(row_dict)
+        return None
 
 
 async def persist(dto: CreateHanziDto) -> Hanzi:
-    values = {**dto.dict()}    
-    query = HanziModel.insert().values(**values)
-    await database.execute(query)
-
+    values = {**dto.dict()}
+    
+    async with get_async_session() as session:
+        query = insert(HanziModel).values(**values)
+        await session.execute(query)
+        # Session commit is handled by get_async_session context manager
+        
     return Hanzi.parse_obj({**values})
 
 
@@ -41,11 +55,14 @@ async def update(
         return None
 
     values = dto.dict(exclude_unset=True)
-    query = (
-        HanziModel.update()
-        .where(HanziModel.c.character == character)
-        .values(**values)
-    )
-    await database.execute(query)
+    
+    async with get_async_session() as session:
+        query = (
+            sqlalchemy_update(HanziModel)
+            .where(HanziModel.c.character == character)
+            .values(**values)
+        )
+        await session.execute(query)
+        # Session commit is handled by get_async_session context manager
 
     return await fetch(character)

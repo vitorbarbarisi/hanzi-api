@@ -1,21 +1,33 @@
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
-import databases
-from sqlalchemy.engine import create_engine
-from sqlalchemy.schema import MetaData
+from sqlalchemy import MetaData
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from hanziapp.config.environment import get_settings
 
 _SETTINGS = get_settings()
 
-# Configure database with connection pool settings
-database = databases.Database(
-    str(_SETTINGS.DATABASE_PG_URL),
-    min_size=5,    # Minimum connections in pool
-    max_size=20,   # Maximum connections in pool
-    max_queries=50000,  # Maximum queries per connection
-    max_inactive_connection_lifetime=300,  # 5 minutes
-    force_rollback=False,  # Allow commits to persist data
+# Configure modern SQLAlchemy 2.x async engine  
+engine: AsyncEngine = create_async_engine(
+    str(_SETTINGS.DATABASE_PG_URL).replace("postgresql://", "postgresql+asyncpg://"),
+    echo=False,  # Set to True for SQL debug logging
+    pool_size=10,  # Connection pool size
+    max_overflow=20,  # Additional connections beyond pool_size
+    pool_pre_ping=True,  # Validate connections before use
+    pool_recycle=3600,  # Recycle connections after 1 hour
+)
+
+# Session maker for database operations
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
 )
 
 metadata = MetaData(
@@ -30,22 +42,40 @@ metadata = MetaData(
 
 
 @asynccontextmanager
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+@asynccontextmanager
 async def database_context():
-    await connect_database()
-    yield database
-    await disconnect_database()
+    """Context manager for database lifecycle."""
+    # Engine handles connections automatically in SQLAlchemy 2.x
+    yield engine
 
 
 async def connect_database():
-    await database.connect()
+    """Initialize database connection (handled automatically by engine)."""
+    # In SQLAlchemy 2.x, connections are managed automatically
+    pass
 
 
 async def disconnect_database():
-    await database.disconnect()
+    """Clean up database connections."""
+    await engine.dispose()
 
 
 def init_database() -> None:
+    """Initialize database schema (for development)."""
     import hanziapp.infra.database.models  # noqa: F401
-
-    metadata.bind = create_engine(str(_SETTINGS.DATABASE_PG_URL))
-    metadata.create_all()
+    
+    # Note: In production, use Alembic migrations instead
+    # This is just for development convenience

@@ -17,7 +17,7 @@ from hanziapp.core.word.entities.word_translation import (
     WordTranslation,
 )
 from hanziapp.core.word.services import word_service, word_translation_service
-from hanziapp.infra.database.sqlalchemy import database
+# Using SQLAlchemy 2.x - transactions handled by repositories
 
 
 repo = get_dependencies().word_repo
@@ -49,7 +49,6 @@ async def health_check():
     status_code=201,
     responses={201: {"description": "Word created"}},
 )
-@database.transaction()
 async def create(dto: CreateWordDto):
     return await word_service.create(repo, dto)
 
@@ -85,7 +84,6 @@ async def get(word: str, background_tasks: BackgroundTasks):
         404: {"description": "Word not found"},
     },
 )
-@database.transaction()
 async def add_translation(word: str, dto: CreateWordTranslationRequestDto):
     # Verify if word exists
     word_obj = await word_service.get(repo, word)
