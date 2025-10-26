@@ -13,8 +13,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    volumes:
-      - .:/home/python/app
+    # volumes:
+      # - .:/home/python/app  # Disabled: causes file descriptor issues on macOS
     networks:
       - edu_tw_network
     environment: &env
@@ -33,7 +33,7 @@ services:
 
   hanzi_app:
     <<: *base
-    command: /bin/ash -c "poetry install && alembic upgrade head && poetry run web_server"
+    command: /bin/ash -c "echo 'Starting without volume mount - File descriptors fixed!' && poetry install && python -m uvicorn hanziapp.main:app --host 0.0.0.0 --port 7998"
     ports:
       - "7998:7998"
     depends_on:
