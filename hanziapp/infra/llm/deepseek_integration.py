@@ -4,10 +4,11 @@ import json
 import os
 from typing import Optional
 
-from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+
+from .config import config
 
 
 class DecompositionResponse(BaseModel):
@@ -26,7 +27,8 @@ class DeepSeekIntegration:
             character: The Chinese character to analyze
         """
         self.character = character
-        self.api_key = self.setup()
+        # Use centralized configuration - no need to load .env multiple times
+        self.api_key = config.deepseek_api_key
         self.llm = None
         
         if self.api_key:
@@ -34,22 +36,10 @@ class DeepSeekIntegration:
                 model="deepseek-chat",
                 base_url="https://api.deepseek.com/v1",
                 api_key=self.api_key,
-                temperature=0
+                temperature=0,
+                request_timeout=60,  # 60 second timeout to prevent hanging connections
+                max_retries=2
             )
-    
-    def setup(self) -> Optional[str]:
-        """Setup environment variables for DeepSeek.
-        
-        Returns:
-            The DeepSeek API key if available, None otherwise
-        """
-        load_dotenv()
-        # Return the DeepSeek API key
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
-        if api_key:
-            return api_key.strip()
-        else:
-            return None  # Allow functioning without API key
     
     def get_decomposition(self) -> str:
         """Get detailed decomposition analysis of the Chinese character.

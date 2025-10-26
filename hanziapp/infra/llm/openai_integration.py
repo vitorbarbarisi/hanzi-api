@@ -5,11 +5,12 @@ import logging
 import os
 from typing import Any, Dict
 
-from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+
+from .config import config
 
 
 class OpenAiIntegration:
@@ -22,19 +23,18 @@ class OpenAiIntegration:
             character: The Chinese character or text to analyze
         """
         self.character = character
-        self.setup()
+        # Use centralized configuration - no need to load .env multiple times
+        self.api_key = config.openai_api_key
+        
+        if not self.api_key:
+            raise ValueError("OpenAI API key not found. Please set OPENAI_API_KEY environment variable.")
+            
         self.llm = ChatOpenAI(
             model="gpt-4o-mini",
-            temperature=0
+            temperature=0,
+            request_timeout=60,  # 60 second timeout to prevent hanging connections
+            max_retries=2
         )
-    
-    def setup(self) -> None:
-        """Setup environment variables for OpenAI."""
-        load_dotenv()
-        # Remove extra spaces from the API key
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            os.environ["OPENAI_API_KEY"] = api_key.strip()
     
     def get_meaning(self) -> str:
         """Get the meaning of the Chinese character.
