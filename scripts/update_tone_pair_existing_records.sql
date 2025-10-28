@@ -6,12 +6,12 @@ CREATE OR REPLACE FUNCTION extract_tone_pair(pinyin_text TEXT)
 RETURNS INTEGER AS $$
 DECLARE
     syllables TEXT[];
-    first_syllable TEXT;
-    second_syllable TEXT;
-    first_tone INTEGER;
-    second_tone INTEGER;
+    syllable TEXT;
+    tone_digits TEXT := '';
+    tone INTEGER;
     char TEXT;
     i INTEGER;
+    idx INTEGER;
 BEGIN
     -- Return NULL if pinyin is empty or null
     IF pinyin_text IS NULL OR TRIM(pinyin_text) = '' THEN
@@ -21,83 +21,45 @@ BEGIN
     -- Split pinyin by spaces
     syllables := string_to_array(TRIM(pinyin_text), ' ');
     
-    -- Check if we have at least 2 syllables
-    IF array_length(syllables, 1) < 2 THEN
-        RETURN NULL;
-    END IF;
-    
-    first_syllable := LOWER(syllables[1]);
-    second_syllable := LOWER(syllables[2]);
-    
-    -- Function to extract tone from a syllable
-    -- Returns 5 (neutral tone) if no tone mark is found
-    first_tone := 5; -- Default to neutral tone
-    second_tone := 5; -- Default to neutral tone
-    
-    -- Check first syllable for tone marks
-    FOR i IN 1..length(first_syllable) LOOP
-        char := substring(first_syllable, i, 1);
-        CASE char
-            WHEN 'ā' THEN first_tone := 1;
-            WHEN 'á' THEN first_tone := 2;
-            WHEN 'ǎ' THEN first_tone := 3;
-            WHEN 'à' THEN first_tone := 4;
-            WHEN 'ē' THEN first_tone := 1;
-            WHEN 'é' THEN first_tone := 2;
-            WHEN 'ě' THEN first_tone := 3;
-            WHEN 'è' THEN first_tone := 4;
-            WHEN 'ī' THEN first_tone := 1;
-            WHEN 'í' THEN first_tone := 2;
-            WHEN 'ǐ' THEN first_tone := 3;
-            WHEN 'ì' THEN first_tone := 4;
-            WHEN 'ō' THEN first_tone := 1;
-            WHEN 'ó' THEN first_tone := 2;
-            WHEN 'ǒ' THEN first_tone := 3;
-            WHEN 'ò' THEN first_tone := 4;
-            WHEN 'ū' THEN first_tone := 1;
-            WHEN 'ú' THEN first_tone := 2;
-            WHEN 'ǔ' THEN first_tone := 3;
-            WHEN 'ù' THEN first_tone := 4;
-            WHEN 'ǖ' THEN first_tone := 1;
-            WHEN 'ǘ' THEN first_tone := 2;
-            WHEN 'ǚ' THEN first_tone := 3;
-            WHEN 'ǜ' THEN first_tone := 4;
-        END CASE;
+    -- Process all syllables; for each, extract tone digit and append
+    FOR idx IN 1..array_length(syllables, 1) LOOP
+        syllable := LOWER(syllables[idx]);
+        tone := 5; -- default neutral tone
+        
+        FOR i IN 1..length(syllable) LOOP
+            char := substring(syllable, i, 1);
+            CASE char
+                WHEN 'ā' THEN tone := 1;
+                WHEN 'á' THEN tone := 2;
+                WHEN 'ǎ' THEN tone := 3;
+                WHEN 'à' THEN tone := 4;
+                WHEN 'ē' THEN tone := 1;
+                WHEN 'é' THEN tone := 2;
+                WHEN 'ě' THEN tone := 3;
+                WHEN 'è' THEN tone := 4;
+                WHEN 'ī' THEN tone := 1;
+                WHEN 'í' THEN tone := 2;
+                WHEN 'ǐ' THEN tone := 3;
+                WHEN 'ì' THEN tone := 4;
+                WHEN 'ō' THEN tone := 1;
+                WHEN 'ó' THEN tone := 2;
+                WHEN 'ǒ' THEN tone := 3;
+                WHEN 'ò' THEN tone := 4;
+                WHEN 'ū' THEN tone := 1;
+                WHEN 'ú' THEN tone := 2;
+                WHEN 'ǔ' THEN tone := 3;
+                WHEN 'ù' THEN tone := 4;
+                WHEN 'ǖ' THEN tone := 1;
+                WHEN 'ǘ' THEN tone := 2;
+                WHEN 'ǚ' THEN tone := 3;
+                WHEN 'ǜ' THEN tone := 4;
+            END CASE;
+        END LOOP;
+        tone_digits := tone_digits || CAST(tone AS TEXT);
     END LOOP;
     
-    -- Check second syllable for tone marks
-    FOR i IN 1..length(second_syllable) LOOP
-        char := substring(second_syllable, i, 1);
-        CASE char
-            WHEN 'ā' THEN second_tone := 1;
-            WHEN 'á' THEN second_tone := 2;
-            WHEN 'ǎ' THEN second_tone := 3;
-            WHEN 'à' THEN second_tone := 4;
-            WHEN 'ē' THEN second_tone := 1;
-            WHEN 'é' THEN second_tone := 2;
-            WHEN 'ě' THEN second_tone := 3;
-            WHEN 'è' THEN second_tone := 4;
-            WHEN 'ī' THEN second_tone := 1;
-            WHEN 'í' THEN second_tone := 2;
-            WHEN 'ǐ' THEN second_tone := 3;
-            WHEN 'ì' THEN second_tone := 4;
-            WHEN 'ō' THEN second_tone := 1;
-            WHEN 'ó' THEN second_tone := 2;
-            WHEN 'ǒ' THEN second_tone := 3;
-            WHEN 'ò' THEN second_tone := 4;
-            WHEN 'ū' THEN second_tone := 1;
-            WHEN 'ú' THEN second_tone := 2;
-            WHEN 'ǔ' THEN second_tone := 3;
-            WHEN 'ù' THEN second_tone := 4;
-            WHEN 'ǖ' THEN second_tone := 1;
-            WHEN 'ǘ' THEN second_tone := 2;
-            WHEN 'ǚ' THEN second_tone := 3;
-            WHEN 'ǜ' THEN second_tone := 4;
-        END CASE;
-    END LOOP;
-    
-    -- Return as two-digit number
-    RETURN first_tone * 10 + second_tone;
+    -- Return concatenated digits as integer
+    RETURN CAST(tone_digits AS INTEGER);
 END;
 $$ LANGUAGE plpgsql;
 

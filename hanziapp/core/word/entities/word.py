@@ -28,9 +28,16 @@ class CreateWordDto(BaseModel):
     @staticmethod
     def _extract_tone_pair_from_pinyin(pinyin: str) -> Optional[int]:
         """
-        Extract tone pair from pinyin string.
-        Example: "yī xià" -> 14
-        Handles all 5 tones including neutral tone (5th tone)
+        Extract tone sequence from pinyin string (1..n syllables).
+        Examples:
+          - "jù" -> 4
+          - "yuē" -> 1
+          - "kàn qǐ lái" -> 432
+          - "rén gōng zhì néng" -> 2142
+          - "sāi bā sī dì ān" -> 11141
+
+        Handles all 5 tones including neutral tone (5th tone).
+        Returns an integer formed by concatenating per-syllable tones.
         """
         if not pinyin:
             return None
@@ -45,33 +52,22 @@ class CreateWordDto(BaseModel):
             'ǖ': 1, 'ǘ': 2, 'ǚ': 3, 'ǜ': 4,
         }
         
-        # Split pinyin by spaces and get first two syllables
+        # Split pinyin by spaces and process all syllables
         syllables = pinyin.strip().split()
-        if len(syllables) < 2:
+        if len(syllables) == 0:
             return None
         
-        first_syllable = syllables[0].lower()
-        second_syllable = syllables[1].lower()
-        
         def extract_tone(syllable: str) -> int:
-            """
-            Extract tone from a syllable.
-            Returns 5 (neutral tone) if no tone mark is found.
-            """
-            # Check for tone marks in the syllable
-            for char in syllable:
+            """Extract tone from a syllable. Defaults to 5 (neutral) if none found."""
+            s = syllable.lower()
+            for char in s:
                 if char in tone_map:
                     return tone_map[char]
-            
-            # If no tone mark found, it's neutral tone (5th tone)
             return 5
         
-        # Extract tones from both syllables
-        first_tone = extract_tone(first_syllable)
-        second_tone = extract_tone(second_syllable)
-        
-        # Return as two-digit number
-        return int(f"{first_tone}{second_tone}")
+        tones = [str(extract_tone(syllable)) for syllable in syllables]
+        digits = "".join(tones)
+        return int(digits) if digits else None
 
     class Config:
         allow_mutation = False

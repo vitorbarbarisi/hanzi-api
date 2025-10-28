@@ -30,6 +30,9 @@ services:
       WEB_SERVER_PORT: 7998
       WEB_SERVER_RELOAD: "true"
       WEB_SERVER_CONCURRENCY: 10
+      # LLM API Keys - will be loaded from .env file
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
 
   hanzi_app:
     <<: *base

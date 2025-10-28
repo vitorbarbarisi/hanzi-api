@@ -54,6 +54,19 @@ async def create(dto: CreateWordDto):
 
 
 @router.get(
+    "/search",
+    response_class=JSONResponse,
+    response_model=List[Word],
+    status_code=200,
+    responses={
+        200: {"description": "Words found"},
+    },
+)
+async def search(q: str):
+    return await word_service.search(repo, q)
+
+
+@router.get(
     "/{word}",
     response_class=JSONResponse,
     response_model=WordWithTranslations,

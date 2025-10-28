@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, List
+import re
 
 from hanziapp.core.word.entities.word import (
     CreateWordDto,
@@ -89,3 +90,15 @@ async def get_with_translations(
         tone_pair=word_obj.tone_pair,
         translations=translation_strings
     )
+
+
+async def search(repo: WordRepo, q: str) -> List[Word]:
+    """
+    Search words by query.
+    - If q contains any CJK character, search by Word.word LIKE %q%
+    - Otherwise, search by Word.translation LIKE %q%
+    """
+    contains_cjk = re.search(r"[\u4e00-\u9fff]", q) is not None
+    if contains_cjk:
+        return await repo.search_by_word_like(q)
+    return await repo.search_by_translation_like(q)

@@ -7,21 +7,28 @@ This script can be run from the application context
 import asyncio
 import sys
 import os
-from typing import Optional
+from typing import Optional, List
+from sqlalchemy import select, update as sqlalchemy_update, func, text
 
 # Add the project root to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from hanziapp.core.word.entities.word import CreateWordDto
-from hanziapp.infra.database.sqlalchemy import database
+from hanziapp.infra.database.sqlalchemy import get_async_session
 from hanziapp.infra.database.models.word import Word as WordModel
 
 
 def extract_tone_pair_from_pinyin(pinyin: str) -> Optional[int]:
     """
-    Extract tone pair from pinyin string.
-    Example: "yī xià" -> 14
-    Handles all 5 tones including neutral tone (5th tone)
+    Extract tone sequence from pinyin string.
+    Examples:
+      - "jù" -> 4
+      - "yuē" -> 1
+      - "kàn qǐ lái" -> 432
+      - "rén gōng zhì néng" -> 2142
+      - "sāi bā sī dì ān" -> 11141
+
+    Handles all 5 tones including neutral tone (5th tone).
+    Returns an integer formed by concatenating per-syllable tones.
     """
     if not pinyin:
         return None
@@ -36,117 +43,149 @@ def extract_tone_pair_from_pinyin(pinyin: str) -> Optional[int]:
         'ǖ': 1, 'ǘ': 2, 'ǚ': 3, 'ǜ': 4,
     }
     
-    # Split pinyin by spaces and get first two syllables
+    # Split pinyin by spaces and process all syllables
     syllables = pinyin.strip().split()
-    if len(syllables) < 2:
+    if len(syllables) == 0:
         return None
     
-    first_syllable = syllables[0].lower()
-    second_syllable = syllables[1].lower()
-    
     def extract_tone(syllable: str) -> int:
-        """
-        Extract tone from a syllable.
-        Returns 5 (neutral tone) if no tone mark is found.
-        """
-        # Check for tone marks in the syllable
-        for char in syllable:
+        """Extract tone from a syllable. Defaults to 5 (neutral) if none found."""
+        s = syllable.lower()
+        for char in s:
             if char in tone_map:
                 return tone_map[char]
-        
-        # If no tone mark found, it's neutral tone (5th tone)
         return 5
     
-    # Extract tones from both syllables
-    first_tone = extract_tone(first_syllable)
-    second_tone = extract_tone(second_syllable)
-    
-    # Return as two-digit number
-    return int(f"{first_tone}{second_tone}")
+    tones = [str(extract_tone(syllable)) for syllable in syllables]
+    digits = "".join(tones)
+    return int(digits) if digits else None
 
 
 async def update_tone_pairs():
     """Update tone_pair for all existing records"""
-    
     print("Starting tone_pair update process...")
     print("=" * 50)
-    
-    # Connect to database
-    await database.connect()
-    
-    try:
-        # Get all records that need updating
-        query = WordModel.select().where(
-            (WordModel.c.pinyin.isnot(None)) & 
-            (WordModel.c.tone_pair.is_(None))
+
+    async with get_async_session() as session:
+        # Ensure DB column can hold long sequences (upgrade to BIGINT if needed)
+        # Check current data type and upgrade to BIGINT if needed
+        try:
+            res = await session.execute(
+                text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = 'word' AND column_name = 'tone_pair'"
+                )
+            )
+            current_type = res.scalar()
+            if current_type and current_type.lower() in {"integer", "int", "int4"}:
+                await session.execute(
+                    text("ALTER TABLE word ALTER COLUMN tone_pair TYPE BIGINT USING tone_pair::BIGINT")
+                )
+                await session.commit()
+                print("Upgraded column 'tone_pair' to BIGINT")
+        except Exception as e:
+            # Ignore if already BIGINT; rollback any failed DDL
+            await session.rollback()
+            print(f"Warning: could not upgrade tone_pair column type automatically: {e}")
+        # Fetch all words that have non-empty pinyin; we'll fix both missing and wrong-length tone_pairs
+        query = (
+            select(WordModel)
+            .where(WordModel.c.pinyin.isnot(None))
+            .where(func.trim(WordModel.c.pinyin) != "")
         )
-        
-        records = await database.fetch_all(query)
-        
-        print(f"Found {len(records)} records to update")
-        
+        result = await session.execute(query)
+        rows = result.fetchall()
+        records: List[dict] = [dict(row._mapping) for row in rows]
+
+        print(f"Found {len(records)} records with non-empty pinyin to check")
+
         if len(records) == 0:
             print("No records need updating!")
             return
-        
+
         # Show some examples before updating
-        print("\nSample records to be updated:")
-        for i, record in enumerate(records[:5]):
-            tone_pair = extract_tone_pair_from_pinyin(record.pinyin)
-            print(f"  {record.word}: '{record.pinyin}' -> {tone_pair}")
-        
-        if len(records) > 5:
-            print(f"  ... and {len(records) - 5} more records")
-        
+        print("\nSample records (expected recalculation shown):")
+        for record in records[:5]:
+            new_tone_pair = extract_tone_pair_from_pinyin(record["pinyin"])
+            print(f"  {record['word']}: '{record['pinyin']}' -> {new_tone_pair}")
+
         # Update records in batches
-        batch_size = 100
-        updated_count = 0
-        
+        batch_size = 200
+        updated_missing = 0
+        updated_mismatch = 0
+        skipped = 0
+
         for i in range(0, len(records), batch_size):
             batch = records[i:i + batch_size]
-            
+
             for record in batch:
-                tone_pair = extract_tone_pair_from_pinyin(record.pinyin)
-                
-                if tone_pair is not None:
-                    # Update the record
+                pinyin = record["pinyin"]
+                current = record.get("tone_pair")
+                syllables_count = len(pinyin.strip().split())
+                new_tone_pair = extract_tone_pair_from_pinyin(pinyin)
+
+                if new_tone_pair is None:
+                    skipped += 1
+                    continue
+
+                current_len = len(str(current)) if current is not None else 0
+
+                # Update if missing or if digits length doesn't match syllable count, or value differs
+                if current is None:
                     update_query = (
-                        WordModel.update()
-                        .where(WordModel.c.word == record.word)
-                        .values(tone_pair=tone_pair)
+                        sqlalchemy_update(WordModel)
+                        .where(WordModel.c.word == record["word"])
+                        .values(tone_pair=new_tone_pair)
                     )
-                    await database.execute(update_query)
-                    updated_count += 1
+                    await session.execute(update_query)
+                    updated_missing += 1
+                elif current != new_tone_pair or current_len != syllables_count:
+                    update_query = (
+                        sqlalchemy_update(WordModel)
+                        .where(WordModel.c.word == record["word"])
+                        .values(tone_pair=new_tone_pair)
+                    )
+                    await session.execute(update_query)
+                    updated_mismatch += 1
                 else:
-                    print(f"  Warning: Could not extract tone from '{record.pinyin}' for word '{record.word}'")
-            
-            print(f"  Processed batch {i//batch_size + 1}/{(len(records) + batch_size - 1)//batch_size}")
-        
-        print(f"\nUpdate completed!")
-        print(f"Successfully updated {updated_count} records")
-        
-        # Show final statistics
-        total_query = WordModel.select()
-        total_records = await database.fetch_all(total_query)
-        
-        with_tone_pair = sum(1 for r in total_records if r.tone_pair is not None)
-        without_tone_pair = sum(1 for r in total_records if r.tone_pair is None)
-        
+                    skipped += 1
+
+            print(
+                f"  Processed batch {i//batch_size + 1}/{(len(records) + batch_size - 1)//batch_size}"
+            )
+
+        print("\nUpdate completed!")
+        print(f"Updated missing tone_pair: {updated_missing}")
+        print(f"Updated mismatched tone_pair: {updated_mismatch}")
+        print(f"Skipped (already correct or unprocessable): {skipped}")
+
+        # Final statistics
+        total_query = select(WordModel)
+        total_result = await session.execute(total_query)
+        total_rows = total_result.fetchall()
+        total_records: List[dict] = [dict(row._mapping) for row in total_rows]
+
+        with_tone_pair = sum(1 for r in total_records if r.get("tone_pair") is not None)
+        without_tone_pair = sum(1 for r in total_records if r.get("tone_pair") is None)
+
         print(f"\nFinal statistics:")
         print(f"  Total records: {len(total_records)}")
         print(f"  With tone_pair: {with_tone_pair}")
         print(f"  Without tone_pair: {without_tone_pair}")
-        
-        # Show some examples of updated records
-        print(f"\nSample updated records:")
-        updated_query = WordModel.select().where(WordModel.c.tone_pair.isnot(None)).limit(5)
-        updated_records = await database.fetch_all(updated_query)
-        
-        for record in updated_records:
-            print(f"  {record.word}: '{record.pinyin}' -> {record.tone_pair}")
-        
-    finally:
-        await database.disconnect()
+
+        # Show examples of corrected long words (>2 syllables) if any
+        print("\nSample words with >2 syllables after correction:")
+        sample_long_query = (
+            select(WordModel)
+            .where(WordModel.c.pinyin.isnot(None))
+            .where(func.length(func.replace(func.trim(WordModel.c.pinyin), ' ', '')) < func.length(func.trim(WordModel.c.pinyin)))
+            .limit(5)
+        )
+        sample_long_result = await session.execute(sample_long_query)
+        sample_long_rows = sample_long_result.fetchall()
+        for row in sample_long_rows:
+            r = dict(row._mapping)
+            print(f"  {r['word']}: '{r['pinyin']}' -> {r['tone_pair']}")
 
 
 async def main():
