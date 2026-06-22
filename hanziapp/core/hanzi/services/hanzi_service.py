@@ -6,7 +6,7 @@ from hanziapp.core.hanzi.entities.hanzi import (
     UpdateHanziDto,
 )
 from hanziapp.core.hanzi.protocols import HanziRepo
-from hanziapp.infra.llm import OpenAiIntegration, DeepSeekIntegration
+from hanziapp.infra.llm import DeepSeekIntegration
 
 
 async def create(
@@ -72,15 +72,14 @@ async def enrich_hanzi_background(repo: HanziRepo, character: str) -> None:
     try:
         import json
         
-        # Initialize LLM integrations
-        openai_integration = OpenAiIntegration(character)
+        # Initialize LLM integration
         deepseek_integration = DeepSeekIntegration(character)
-        
+
         print(f"Starting LLM enrichment for character: {character}")
-        
-        # Get data from LLMs
-        meaning = openai_integration.get_meaning()
-        related_words = openai_integration.get_related_words()
+
+        # Get data from DeepSeek
+        meaning = deepseek_integration.get_meaning()
+        related_words = deepseek_integration.get_related_words()
         
         # Get decomposition from DeepSeek (returns JSON)
         decomposition_json = deepseek_integration.get_decomposition()
