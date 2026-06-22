@@ -7,6 +7,7 @@ from hanziapp.core.hanzi.entities.hanzi import (
 )
 from hanziapp.core.hanzi.protocols import HanziRepo
 from hanziapp.infra.llm import DeepSeekIntegration
+from hanziapp.infra.scraper import HanziCraftScraper
 
 
 async def create(
@@ -86,20 +87,31 @@ async def enrich_hanzi_background(repo: HanziRepo, character: str) -> None:
         decomposition_data = json.loads(decomposition_json)
         decomposition = decomposition_data.get("decomposition", "")
         decomposition_meaning = decomposition_data.get("decomposition_meaning", "")
-        
+
+        # Scrape the optional "Appears In" section from HanziCraft.
+        # Returns "" when the section is absent or the page is unreachable.
+        appears_in = HanziCraftScraper(character).get_appears_in()
+
         print(f"Enrichment data gathered for {character}")
         print(f"Meaning: {meaning[:100]}...")
         print(f"Related words: {related_words[:100]}...")
         print(f"Decomposition: {decomposition[:100]}...")
         print(f"Decomposition meaning: {decomposition_meaning[:100]}...")
-        
-        # Update hanzi record in database
-        update_dto = UpdateHanziDto(
+        print(f"Appears in: {appears_in[:100]}...")
+
+        # Update hanzi record in database. The repository uses
+        # exclude_unset=True, so only pass appears_in when the scrape returned
+        # data to avoid overwriting an existing value with an empty string.
+        update_fields = dict(
             meaning=meaning,
             related_words=related_words,
             decomposition=decomposition,
             decomposition_meaning=decomposition_meaning,
         )
+        if appears_in:
+            update_fields["appears_in"] = appears_in
+
+        update_dto = UpdateHanziDto(**update_fields)
         
         result = await repo.update(update_dto, character)
         
