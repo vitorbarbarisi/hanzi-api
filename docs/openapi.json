@@ -1,0 +1,667 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "HanziAPI",
+    "description": "CRUD for hanzi characters",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:7998",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/hanzi-api/hanzi": {
+      "post": {
+        "tags": ["Hanzi"],
+        "summary": "Create a new hanzi character",
+        "description": "Creates a new Chinese character record. A background task is automatically triggered to enrich the character with meaning, related words, decomposition, and appears_in data from LLM and web sources.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHanziDto"
+              },
+              "examples": {
+                "simple": {
+                  "value": {
+                    "character": "愛",
+                    "frequency": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Hanzi created successfully. Returns the record with empty enrichment fields (populated asynchronously in background).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hanzi"
+                },
+                "example": {
+                  "character": "愛",
+                  "frequency": 200,
+                  "calls": 0,
+                  "meaning": "",
+                  "decomposition": "",
+                  "decomposition_meaning": "",
+                  "appears_in": "",
+                  "related_words": ""
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hanzi-api/hanzi/{character}": {
+      "get": {
+        "tags": ["Hanzi"],
+        "summary": "Get a hanzi character",
+        "description": "Retrieves a Chinese character record by its character. Increments the 'calls' counter asynchronously. If the character has not been enriched yet, some fields may be empty.",
+        "parameters": [
+          {
+            "name": "character",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "愛"
+            },
+            "description": "The Chinese character (single character string)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hanzi found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hanzi"
+                },
+                "example": {
+                  "character": "愛",
+                  "frequency": 200,
+                  "calls": 5,
+                  "meaning": "愛 (ài) significa 'amor'...",
+                  "decomposition": "爫 + 冖 + 心 + 夊",
+                  "decomposition_meaning": "Uma mão (garra) que segura cuidadosamente o coração",
+                  "appears_in": "戀 曖 愛好",
+                  "related_words": "愛人 - amante\n愛好 - hobby"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Hanzi not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "description": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "description": "Hanzi not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/hanzi-api/hanzi/{character}/enrich": {
+      "put": {
+        "tags": ["Hanzi"],
+        "summary": "Manually trigger enrichment",
+        "description": "Manually trigger LLM enrichment for an existing hanzi character. Returns immediately (202) while enrichment happens in background. Useful when initial enrichment failed or you want to refresh the data.",
+        "parameters": [
+          {
+            "name": "character",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "愛"
+            },
+            "description": "The Chinese character to enrich"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Enrichment task started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "character": { "type": "string" },
+                    "status": { "type": "string" }
+                  }
+                },
+                "example": {
+                  "message": "Enrichment task started",
+                  "character": "愛",
+                  "status": "processing"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Hanzi not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string" },
+                    "character": { "type": "string" }
+                  }
+                },
+                "example": {
+                  "error": "Hanzi not found",
+                  "character": "愛"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/word-api/word/health": {
+      "get": {
+        "tags": ["Word"],
+        "summary": "Health check",
+        "description": "Verify that the Word API is running and healthy.",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                },
+                "example": {
+                  "status": "healthy",
+                  "message": "Word API is running"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/word-api/word": {
+      "post": {
+        "tags": ["Word"],
+        "summary": "Create a new word",
+        "description": "Creates a new Chinese word record.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWordDto"
+              },
+              "example": {
+                "word": "愛人",
+                "frequency": 150,
+                "confidence_level": 2,
+                "tone_pair": 51
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Word created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Word"
+                },
+                "example": {
+                  "word": "愛人",
+                  "frequency": 150,
+                  "calls": 0,
+                  "confidence_level": 2,
+                  "tone_pair": 51,
+                  "try": null,
+                  "try_translation": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/word-api/word/search": {
+      "get": {
+        "tags": ["Word"],
+        "summary": "Search words",
+        "description": "Search for words by Chinese characters, pinyin, or English translation. Supports CJK character matching and translation fuzzy search. Results ordered by call count (most frequently accessed first).",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "example": "愛",
+            "description": "Search query: Chinese characters, pinyin, or English translation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Words found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Word"
+                  }
+                },
+                "example": [
+                  {
+                    "word": "愛人",
+                    "frequency": 150,
+                    "calls": 42,
+                    "confidence_level": 2,
+                    "tone_pair": 51,
+                    "try": null,
+                    "try_translation": null
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/word-api/word/{word}": {
+      "get": {
+        "tags": ["Word"],
+        "summary": "Get a word with translations",
+        "description": "Retrieves a Chinese word record with all associated translations. Increments the 'calls' counter asynchronously.",
+        "parameters": [
+          {
+            "name": "word",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "愛人"
+            },
+            "description": "The Chinese word"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Word found with translations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordWithTranslations"
+                },
+                "example": {
+                  "word": "愛人",
+                  "frequency": 150,
+                  "calls": 42,
+                  "confidence_level": 2,
+                  "tone_pair": 51,
+                  "try": null,
+                  "try_translation": null,
+                  "translations": [
+                    {
+                      "word": "愛人",
+                      "translation": "lover",
+                      "created_at": "2026-06-22T10:30:00"
+                    },
+                    {
+                      "word": "愛人",
+                      "translation": "sweetheart",
+                      "created_at": "2026-06-22T10:31:00"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Word not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "description": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "description": "Word not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/word-api/word/{word}/translations": {
+      "put": {
+        "tags": ["Word"],
+        "summary": "Add a translation to a word",
+        "description": "Adds a new English translation for a Chinese word. Word must exist.",
+        "parameters": [
+          {
+            "name": "word",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "愛人"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "translation": {
+                    "type": "string",
+                    "example": "lover"
+                  }
+                },
+                "required": ["translation"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Translation added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordTranslation"
+                },
+                "example": {
+                  "word": "愛人",
+                  "translation": "lover",
+                  "created_at": "2026-06-22T10:35:00"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Word not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "description": { "type": "string" }
+                  }
+                },
+                "example": {
+                  "description": "Word not found"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Word"],
+        "summary": "Get translations for a word",
+        "description": "Retrieves all English translations associated with a Chinese word.",
+        "parameters": [
+          {
+            "name": "word",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "愛人"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Translations found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WordTranslation"
+                  }
+                },
+                "example": [
+                  {
+                    "word": "愛人",
+                    "translation": "lover",
+                    "created_at": "2026-06-22T10:30:00"
+                  },
+                  {
+                    "word": "愛人",
+                    "translation": "sweetheart",
+                    "created_at": "2026-06-22T10:31:00"
+                  }
+                ]
+              }
+            }
+          },
+          "404": {
+            "description": "Word not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "description": { "type": "string" }
+                  }
+                },
+                "example": {
+                  "description": "Word not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateHanziDto": {
+        "type": "object",
+        "properties": {
+          "character": {
+            "type": "string",
+            "description": "Single Chinese character",
+            "example": "愛"
+          },
+          "frequency": {
+            "type": "integer",
+            "description": "Frequency rank (lower = more common)",
+            "minimum": 1,
+            "example": 200
+          }
+        },
+        "required": ["character", "frequency"]
+      },
+      "Hanzi": {
+        "type": "object",
+        "properties": {
+          "character": {
+            "type": "string",
+            "example": "愛"
+          },
+          "frequency": {
+            "type": "integer",
+            "example": 200
+          },
+          "calls": {
+            "type": "integer",
+            "description": "Number of times this character has been accessed",
+            "example": 0
+          },
+          "meaning": {
+            "type": "string",
+            "description": "Character meaning and pinyin (from DeepSeek)",
+            "example": ""
+          },
+          "decomposition": {
+            "type": "string",
+            "description": "Visual decomposition into components/radicals (from DeepSeek)",
+            "example": ""
+          },
+          "decomposition_meaning": {
+            "type": "string",
+            "description": "Semantic explanation of how components form the character (from DeepSeek)",
+            "example": ""
+          },
+          "appears_in": {
+            "type": "string",
+            "description": "Characters/words where this character appears (from HanziCraft scraper)",
+            "example": ""
+          },
+          "related_words": {
+            "type": "string",
+            "description": "Words containing this character (from DeepSeek)",
+            "example": ""
+          }
+        },
+        "required": ["character", "frequency"]
+      },
+      "CreateWordDto": {
+        "type": "object",
+        "properties": {
+          "word": {
+            "type": "string",
+            "description": "Chinese word (characters, no spaces)",
+            "example": "愛人"
+          },
+          "frequency": {
+            "type": "integer",
+            "description": "Frequency rank",
+            "minimum": 1,
+            "example": 150
+          },
+          "confidence_level": {
+            "type": "integer",
+            "description": "Translation confidence: 1 (low), 2 (medium), 3 (high)",
+            "enum": [1, 2, 3],
+            "example": 2
+          },
+          "tone_pair": {
+            "type": "integer",
+            "description": "Encoded tone pair for polysyllabic words (optional)",
+            "nullable": true,
+            "example": 51
+          }
+        },
+        "required": ["word", "frequency", "confidence_level"]
+      },
+      "Word": {
+        "type": "object",
+        "properties": {
+          "word": {
+            "type": "string",
+            "example": "愛人"
+          },
+          "frequency": {
+            "type": "integer",
+            "example": 150
+          },
+          "calls": {
+            "type": "integer",
+            "description": "Number of times this word has been accessed",
+            "example": 0
+          },
+          "confidence_level": {
+            "type": "integer",
+            "enum": [1, 2, 3],
+            "example": 2
+          },
+          "tone_pair": {
+            "type": "integer",
+            "nullable": true,
+            "example": 51
+          },
+          "try": {
+            "type": "string",
+            "nullable": true,
+            "description": "Internal field, reserved",
+            "example": null
+          },
+          "try_translation": {
+            "type": "string",
+            "nullable": true,
+            "description": "Internal field, reserved",
+            "example": null
+          }
+        },
+        "required": ["word", "frequency", "confidence_level"]
+      },
+      "WordWithTranslations": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Word"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "translations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WordTranslation"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "WordTranslation": {
+        "type": "object",
+        "properties": {
+          "word": {
+            "type": "string",
+            "example": "愛人"
+          },
+          "translation": {
+            "type": "string",
+            "example": "lover"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-06-22T10:30:00"
+          }
+        },
+        "required": ["word", "translation"]
+      }
+    }
+  }
+}
