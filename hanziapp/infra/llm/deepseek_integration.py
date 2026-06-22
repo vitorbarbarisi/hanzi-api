@@ -4,6 +4,7 @@ import json
 import os
 from typing import Optional
 
+import httpx
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -32,13 +33,15 @@ class DeepSeekIntegration:
         self.llm = None
 
         if self.api_key:
+            ssl_verify = os.environ.get("SSL_VERIFY", "true").lower() != "false"
             self.llm = ChatOpenAI(
                 model="deepseek-chat",
                 base_url="https://api.deepseek.com/v1",
                 api_key=self.api_key,
                 temperature=0,
                 request_timeout=60,
-                max_retries=2
+                max_retries=2,
+                http_client=httpx.Client(verify=ssl_verify),
             )
     
     def get_meaning(self) -> str:
