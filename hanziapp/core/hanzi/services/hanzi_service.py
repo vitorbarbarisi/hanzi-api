@@ -1,4 +1,5 @@
-from typing import Iterable, Optional, Union
+import asyncio
+from typing import Optional
 
 from hanziapp.core.hanzi.entities.hanzi import (
     CreateHanziDto,
@@ -18,49 +19,27 @@ async def create(
 
 async def get(repo: HanziRepo, character: str) -> Optional[Hanzi]:
     result = await repo.fetch(character)
-    print(f"Cache hits: {repo.cache_hits}")
-    print(f"Cache misses: {repo.cache_misses}")
-    # if result:
-    #     await repo.update(UpdateHanziDto(calls=result.calls + 1 or 1), result.character)
     return result
 
 async def increment_count(repo: HanziRepo, character: str) -> bool:
     """
-    Domain service to increment the count of a hanzi character
+    Domain service to increment the count of a hanzi character.
+    Uses an atomic UPDATE so concurrent requests don't lose increments.
     Returns True if successful, False otherwise
     """
-    import asyncio
-    from asyncpg.exceptions import InterfaceError
-    
     max_retries = 3
     retry_delay = 0.1
-    
+
     for attempt in range(max_retries):
         try:
-            # Use a fresh connection for background task
-            hanzi = await repo.fetch(character)
-            if hanzi:
-                await repo.update(UpdateHanziDto(calls=hanzi.calls + 1), character)
-                return True
-            return False
-        except InterfaceError as e:
-            # Specific handling for connection pool errors
-            print(f"Connection pool error on attempt {attempt + 1} for character '{character}': {e}")
-            if attempt < max_retries - 1:
-                await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
-            else:
-                print(f"Connection pool exhausted for character '{character}' after {max_retries} attempts")
-                return False
+            return await repo.increment_calls(character)
         except Exception as e:
-            # General error handling
             print(f"Attempt {attempt + 1} failed incrementing count for character '{character}': {e}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
-            else:
-                print(f"Failed to increment count for character '{character}' after {max_retries} attempts")
-                return False
+    print(f"Failed to increment count for character '{character}' after {max_retries} attempts")
+    return False
 
 async def enrich_hanzi_background(repo: HanziRepo, character: str) -> None:
     """
@@ -72,25 +51,27 @@ async def enrich_hanzi_background(repo: HanziRepo, character: str) -> None:
     """
     try:
         import json
-        
+
         # Initialize LLM integration
         deepseek_integration = DeepSeekIntegration(character)
 
         print(f"Starting LLM enrichment for character: {character}")
 
-        # Get data from DeepSeek
-        meaning = deepseek_integration.get_meaning()
-        related_words = deepseek_integration.get_related_words()
-        
+        # The LLM and scraper calls below are synchronous/blocking (up to
+        # 60s each). This task runs on the event loop, so run them in
+        # worker threads to keep the API responsive during enrichment.
+        meaning = await asyncio.to_thread(deepseek_integration.get_meaning)
+        related_words = await asyncio.to_thread(deepseek_integration.get_related_words)
+
         # Get decomposition from DeepSeek (returns JSON)
-        decomposition_json = deepseek_integration.get_decomposition()
+        decomposition_json = await asyncio.to_thread(deepseek_integration.get_decomposition)
         decomposition_data = json.loads(decomposition_json)
         decomposition = decomposition_data.get("decomposition", "")
         decomposition_meaning = decomposition_data.get("decomposition_meaning", "")
 
         # Scrape the optional "Appears In" section from HanziCraft.
         # Returns "" when the section is absent or the page is unreachable.
-        appears_in = HanziCraftScraper(character).get_appears_in()
+        appears_in = await asyncio.to_thread(HanziCraftScraper(character).get_appears_in)
 
         print(f"Enrichment data gathered for {character}")
         print(f"Meaning: {meaning[:100]}...")

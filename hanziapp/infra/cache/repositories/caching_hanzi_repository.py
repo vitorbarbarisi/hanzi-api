@@ -1,4 +1,4 @@
-from typing import Iterable, Optional
+from typing import Optional
 
 from hanziapp.infra.database.repositories import database_hanzi_repository as DatabaseHanziRepo
 from hanziapp.core.hanzi.entities.hanzi import (
@@ -37,12 +37,16 @@ async def update(
         del memory_cache[character]
     
     result = await DatabaseHanziRepo.update(dto, character)
-    
+
     # Update cache with fresh data
     if result:
         memory_cache[character] = result.to_json()
-    
+
     return result
 
-async def list() -> Iterable[Hanzi]:
-    return await DatabaseHanziRepo.list()
+async def increment_calls(character: str) -> bool:
+    result = await DatabaseHanziRepo.increment_calls(character)
+    # Drop the cached entry so the next fetch sees the fresh calls count
+    if result:
+        memory_cache.pop(character, None)
+    return result

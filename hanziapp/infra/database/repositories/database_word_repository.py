@@ -51,7 +51,9 @@ async def update(
         return None
 
     values = dto.dict(exclude_unset=True)
-    
+    if not values:
+        return await fetch(word)
+
     async with get_async_session() as session:
         query = (
             sqlalchemy_update(WordModel)
@@ -61,6 +63,18 @@ async def update(
         await session.execute(query)
 
     return await fetch(word)
+
+
+async def increment_calls(word: str) -> bool:
+    """Atomically increment the calls counter, safe under concurrency."""
+    async with get_async_session() as session:
+        query = (
+            sqlalchemy_update(WordModel)
+            .where(WordModel.c.word == word)
+            .values(calls=func.coalesce(WordModel.c.calls, 0) + 1)
+        )
+        result = await session.execute(query)
+        return result.rowcount > 0
 
 
 async def search_by_word_like(q: str) -> List[Word]:
@@ -82,7 +96,7 @@ async def search_by_translation_like(q: str) -> List[Word]:
             select(WordTranslationModel.c.id)
             .where(
                 (WordTranslationModel.c.word == WordModel.c.word)
-                & (WordTranslationModel.c.translation.like(f"%{q}%"))
+                & (WordTranslationModel.c.translation.ilike(f"%{q}%"))
             )
             .exists()
         )
@@ -91,7 +105,7 @@ async def search_by_translation_like(q: str) -> List[Word]:
             select(WordModel)
             .where(
                 or_(
-                    WordModel.c.translation.like(f"%{q}%"),
+                    WordModel.c.translation.ilike(f"%{q}%"),
                     translations_exists,
                 )
             )

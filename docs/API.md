@@ -1,32 +1,107 @@
 # HanziAPI — Documentação para IA Codificadora
 
-**Versão:** 0.0.1  
-**Ambiente:** `http://localhost:7998`  
-**Esquema Completo:** [openapi.json](./openapi.json)
+**Versão:** 0.0.1
+**Ambiente:** `http://localhost:7998`
+**Esquema Completo:** [openapi.json](./openapi.json) (gerado pelo FastAPI — fonte da verdade; também disponível em `GET /openapi.json` na app rodando)
+
+## 📋 Referência rápida de endpoints
+
+```
+POST   /hanzi-api/hanzi                     → Criar hanzi (dispara enrich async)
+GET    /hanzi-api/hanzi/{character}         → Obter hanzi
+PUT    /hanzi-api/hanzi/{character}/enrich  → Re-enriquecer (202)
+
+GET    /word-api/health                     → Health check
+POST   /word-api/                           → Criar palavra
+GET    /word-api/search?q=...               → Buscar palavras
+GET    /word-api/{word}                     → Obter palavra + traduções
+PUT    /word-api/{word}/translations        → Adicionar tradução
+GET    /word-api/{word}/translations        → Listar traduções da palavra
+```
+
+⚠️ **Atenção aos prefixos:** os endpoints de word ficam direto sob `/word-api/`
+(NÃO existe `/word-api/word/...`). Os de hanzi ficam sob `/hanzi-api/hanzi/...`.
 
 ## ⚠️ Conceitos-chave para IA
 
 ### Assincronia
-- **POST hanzi** e **PUT hanzi/{character}/enrich** disparam background tasks
+- **POST /hanzi-api/hanzi** e **PUT /hanzi-api/hanzi/{character}/enrich** disparam background tasks
 - Respostas retornam **imediatamente** (201, 202) enquanto o processamento continua
 - Para obter dados enriquecidos, **faça polling via GET** após alguns segundos
-- Typical enrichment latency: 30-90s (depende do tempo de resposta do DeepSeek + HanziCraft)
+- Latência típica do enrich: 30–90s (DeepSeek + HanziCraft)
+- A fila é in-process (FastAPI BackgroundTasks): se o container reiniciar durante o enrich, a task é perdida — use o PUT `/enrich` para redisparar
 
-### Campos de enriquecimento
-| Campo | Preenchido por | Quando | Exemplo |
-|-------|--------|--------|---------|
-| `meaning` | DeepSeek LLM | após ~30-60s | `愛 (ài) significa 'amor'...` |
-| `related_words` | DeepSeek LLM | após ~30-60s | `愛人 - amante\n愛好 - hobby` |
-| `decomposition` | DeepSeek LLM | após ~30-60s | `爫 + 冖 + 心 + 夊` |
-| `decomposition_meaning` | DeepSeek LLM | após ~30-60s | `Uma mão que segura o coração` |
-| `appears_in` | HanziCraft scraper | após ~60-90s | `戀 曖 愛好` |
-
-**Nota:** Se a seção "Appears In" não existe no HanziCraft, o campo permanece vazio.
+### Campos de enriquecimento (entidade Hanzi)
+| Campo | Preenchido por | Exemplo |
+|-------|--------|---------|
+| `meaning` | DeepSeek LLM | `愛 (ài) significa 'amor'...` |
+| `related_words` | DeepSeek LLM | `愛人 - amante\n愛好 - hobby` |
+| `decomposition` | DeepSeek LLM | `爫 + 冖 + 心 + 夊` |
+| `decomposition_meaning` | DeepSeek LLM | `Uma mão que segura o coração` |
+| `appears_in` | HanziCraft scraper | `戀 曖` (vazio se a seção não existe na página) |
 
 ### Tratamento de erro transparente
-- LLM ou scraper falham? Enrich continua, campos vazios permanecem vazios
-- Não há exceção — o sistema é resiliente
+- LLM ou scraper falham? O enrich continua; campos que falharam ficam `""`
+- Um valor de `appears_in` já existente **não** é sobrescrito por scrape vazio
 - Sempre verifique se um campo é `""` antes de usar
+
+---
+
+## 📦 Schemas reais
+
+### Hanzi
+```json
+{
+  "character": "愛",
+  "frequency": 394,
+  "calls": 20,
+  "meaning": "愛 (ài) significa 'amor'...",
+  "decomposition": "爫 + 冖 + 心 + 夊",
+  "decomposition_meaning": "Uma mão que cobre e protege o coração...",
+  "appears_in": "",
+  "related_words": "愛情 - amor\n愛好 - hobby"
+}
+```
+`CreateHanziDto` (POST): `{"character": "愛", "frequency": 394}` — os demais campos são preenchidos pelo enrich.
+
+### Word
+```json
+{
+  "word": "愛人",
+  "pinyin": "ài rén",
+  "translation": "lover",
+  "calls": 42,
+  "confidence_level": 2,
+  "tone_pair": 42
+}
+```
+`CreateWordDto` (POST `/word-api/`):
+```json
+{"word": "愛人", "pinyin": "ài rén", "translation": "lover", "confidence_level": 2}
+```
+- `confidence_level`: obrigatório, inteiro 1–3 (validado com 422)
+- `tone_pair`: **derivado automaticamente do pinyin** (um dígito de tom por sílaba, tom neutro = 5; ex.: `"ài rén"` → `42`). Não envie manualmente.
+- `calls`: inicia em 0
+
+### WordWithTranslations (GET /word-api/{word})
+Campos de `Word` + `translations` como **lista de strings**:
+```json
+{
+  "word": "愛人",
+  "pinyin": "ài rén",
+  "translation": "lover",
+  "calls": 42,
+  "confidence_level": 2,
+  "tone_pair": 42,
+  "translations": ["lover", "sweetheart"]
+}
+```
+
+### WordTranslation (PUT/GET /word-api/{word}/translations)
+```json
+{"id": 7, "word": "愛人", "translation": "sweetheart"}
+```
+Request do PUT: `{"translation": "sweetheart"}`. Duplicatas **não** são impedidas.
 
 ---
 
@@ -35,261 +110,76 @@
 ### 1. Criar hanzi e esperar enriquecimento
 
 ```python
-# Passo 1: POST (201 - retorna imediatamente)
-POST http://localhost:7998/hanzi-api/hanzi
-{"character": "愛", "frequency": 200}
+# Passo 1: POST (201 - retorna imediatamente com campos vazios)
+POST /hanzi-api/hanzi
+{"character": "愛", "frequency": 394}
 
-→ 201
-{
-  "character": "愛",
-  "frequency": 200,
-  "calls": 0,
-  "meaning": "",
-  "decomposition": "",
-  "decomposition_meaning": "",
-  "appears_in": "",
-  "related_words": ""
-}
+# Passo 2: polling com backoff até meaning/decomposition preencherem
+import time, requests
 
-# Passo 2: Esperar (recomendado: sleep 30s)
-time.sleep(30)
-
-# Passo 3: GET para obter dados enriquecidos
-GET http://localhost:7998/hanzi-api/hanzi/愛
-
-→ 200
-{
-  "character": "愛",
-  "frequency": 200,
-  "calls": 1,
-  "meaning": "愛 (ài) significa 'amor'...",
-  "decomposition": "爫 + 冖 + 心 + 夊",
-  "decomposition_meaning": "Uma mão que segura o coração",
-  "appears_in": "戀 曖 愛好",  # ← pode estar vazio se scraper falhou
-  "related_words": "愛人 - amante\n愛好 - hobby"
-}
-```
-
-### 2. Polling com backoff
-
-```python
-import time
-
-def wait_for_enrichment(character, max_attempts=5, initial_delay=10):
-    """Pooling com backoff exponencial até os dados estarem prontos."""
+def wait_for_enrichment(character, max_attempts=5, initial_delay=15):
     delay = initial_delay
-    for attempt in range(max_attempts):
+    for _ in range(max_attempts):
         time.sleep(delay)
-        response = requests.get(f"http://localhost:7998/hanzi-api/hanzi/{character}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            # Se algum campo enriquecível está cheio, parou de chegar dados
+        r = requests.get(f"http://localhost:7998/hanzi-api/hanzi/{character}")
+        if r.status_code == 200:
+            data = r.json()
             if data.get("meaning") or data.get("decomposition"):
                 return data
-        
-        delay = min(delay * 1.5, 60)  # backoff: 10 → 15 → 22 → 34 → 51s, max 60
-    
-    return response.json()  # retorna com campos parciais ou vazios
+        delay = min(delay * 1.5, 60)
+    return r.json()  # parcial ou vazio após timeout
 ```
 
-### 3. Buscar e manipular traduções
+### 2. Criar palavra e gerenciar traduções
 
 ```python
-# Criar palavra (sem associação automática de traduções)
-POST http://localhost:7998/word-api/word
-{"word": "愛人", "frequency": 150, "confidence_level": 2, "tone_pair": 51}
+# Criar (note o path: /word-api/ — sem segmento extra)
+POST /word-api/
+{"word": "愛人", "pinyin": "ài rén", "translation": "lover", "confidence_level": 2}
+→ 201 {"word": "愛人", "pinyin": "ài rén", "translation": "lover", "calls": 0, "confidence_level": 2, "tone_pair": 42}
 
-→ 201
-{"word": "愛人", "frequency": 150, "calls": 0, "confidence_level": 2, "tone_pair": 51, "try": null, "try_translation": null}
+# Adicionar tradução alternativa
+PUT /word-api/愛人/translations
+{"translation": "sweetheart"}
+→ 201 {"id": 7, "word": "愛人", "translation": "sweetheart"}
 
-# Adicionar tradução
-PUT http://localhost:7998/word-api/word/愛人/translations
-{"translation": "lover"}
+# Obter palavra + traduções
+GET /word-api/愛人
+→ 200 {..., "translations": ["sweetheart"]}
+```
 
-→ 201
-{"word": "愛人", "translation": "lover", "created_at": "2026-06-22T10:35:00"}
+### 3. Buscar palavras
 
-# Obter palavra + todas as traduções
-GET http://localhost:7998/word-api/word/愛人
-
-→ 200
-{
-  "word": "愛人",
-  "frequency": 150,
-  "calls": 1,
-  "confidence_level": 2,
-  "tone_pair": 51,
-  "try": null,
-  "try_translation": null,
-  "translations": [
-    {"word": "愛人", "translation": "lover", "created_at": "2026-06-22T10:35:00"},
-    {"word": "愛人", "translation": "sweetheart", "created_at": "2026-06-22T10:36:00"}
-  ]
-}
-
-# Buscar por query (suporta CJK + tradução)
-GET http://localhost:7998/word-api/word/search?q=愛
-
-→ 200
-[
-  {"word": "愛人", "frequency": 150, "calls": 42, ...},
-  {"word": "愛好", "frequency": 300, "calls": 15, ...}
-]
+```python
+GET /word-api/search?q=愛     # contém CJK → busca em word LIKE %q%
+GET /word-api/search?q=love   # sem CJK → busca em translation (case-insensitive),
+                              # incluindo as traduções alternativas
+→ 200 [ {Word}, ... ]  # ordenado por calls DESC (mais acessadas primeiro); pode ser []
 ```
 
 ---
 
 ## 🔍 Detalhes de comportamento
 
-### GET /hanzi-api/hanzi/{character}
-- Increments `calls` counter **asynchronously** (não bloqueia response)
-- Pode retornar 200 com campos vazios se o enrich ainda não começou/falhou
-- Retorna exatamente um objeto (nunca array)
-
-### POST /hanzi-api/hanzi
-- Retorna **imediatamente** com campos vazios (`calls=0`, `meaning=""`, etc.)
-- Background task é enfileirado no mesmo processo (não há fila persistente)
-- Se o container reiniciar durante o enrich, a task é perdida
-
-### PUT /hanzi-api/hanzi/{character}/enrich
-- Util para re-enriquecer dados ou quando enrich inicial falhou
-- Retorna 202 (Accepted), não 201
-- Sobrescreve campos enriquecidos anteriormente
-
-### GET /word-api/word/{word}
-- Retorna palavra + array `translations` (pode estar vazio)
-- Incrementa `calls` asynchronously
-
-### PUT /word-api/word/{word}/translations
-- Cria nova tradução (duplicatas não são impedidas, use UPSERT se necessário)
-- A palavra deve existir (409/404 caso contrário)
-
-### GET /word-api/word/search?q=...
-- Busca por:
-  - Caracteres chineses exatos
-  - Prefixo em pinyin (se implementado)
-  - Tradução fuzzy
-- Ordenado por `calls` DESC (mais acessadas primeiro)
-- Retorna array (nunca null, pode estar vazio)
-
----
-
-## 🛡️ Tratamento de erro
-
-### Status codes esperados
-| Code | Endpoint | Significado |
-|------|----------|-------------|
-| 200 | GET /hanzi/{char}, GET /word/{word}, GET /word/search | OK, dado retornado |
-| 201 | POST /hanzi, POST /word, PUT /word/{word}/translations | Criado com sucesso |
-| 202 | PUT /hanzi/{char}/enrich | Enrich enfileirado, ainda processando |
-| 404 | GET /hanzi/{char}, GET /word/{word}, PUT /word/{word}/translations | Não encontrado |
-
-### Erro não esperado (500)
-- LLM timeout: enrich falha silenciosamente, background task registra erro em log
-- DB indisponível: aplicação retorna 500, conexão é retentada
-- Scraper falha: `appears_in` fica vazio, não bloqueia enrich
-
-### Campos vazios vs NULL
-- Campo enriquecível (`meaning`, `appears_in`, etc.) ausente ou falho no LLM/scraper = `""`
-- Campo metadado (`try`, `try_translation`) reservado = `null`
-- Nunca será `null` um campo de string esperado; sempre é `""` ou um valor
-
----
+- **GET /hanzi-api/hanzi/{character}** e **GET /word-api/{word}** incrementam o contador `calls` de forma assíncrona e atômica (não bloqueia a resposta)
+- **GET /hanzi-api/hanzi/{character}** usa cache em memória (por processo); o cache é invalidado em updates
+- **PUT /hanzi-api/hanzi/{character}/enrich** retorna `202` com `{"message": "Enrichment task started", "character": "...", "status": "processing"}`, ou `404` se o hanzi não existe
+- **404s** retornam `{"description": "Hanzi not found"}` / `{"description": "Word not found"}` (o PUT enrich usa `{"error": ..., "character": ...}`)
+- **422** para payloads inválidos (formato padrão do FastAPI, schema `HTTPValidationError`)
 
 ## ⏱️ Timeouts e timing
 
-| Operação | Latência típica | Timeout |
-|----------|---|---|
-| POST hanzi | <100ms | 1s |
-| GET hanzi (enrich ainda em andamento) | <50ms | 1s |
-| DeepSeek LLM call | 15-45s | 60s (configurado) |
-| HanziCraft scrape | 5-30s | 30s (configurado) |
-| Background enrich completo | 30-90s | Sem timeout (async) |
+| Operação | Latência típica |
+|----------|---|
+| POST/GET (CRUD) | <100ms |
+| DeepSeek LLM (por chamada) | 15–45s (timeout 60s, 2 retries) |
+| HanziCraft scrape | 5–30s (timeout 30s) |
+| Enrich completo (background) | 30–90s |
 
-**Recomendação:** Se fazer polling, use initial delay de 10-15s, depois backoff.
-
----
-
-## 📝 Exemplo completo: Criar hanzi, aguardar enriquecimento, listar dados
-
-```python
-import requests
-import time
-
-BASE_URL = "http://localhost:7998"
-
-# 1. Criar hanzi
-print("[1] Criando hanzi...")
-resp = requests.post(f"{BASE_URL}/hanzi-api/hanzi", json={
-    "character": "故",
-    "frequency": 1200
-})
-print(f"    Status: {resp.status_code}")
-print(f"    Resposta: {resp.json()}")
-
-# 2. Aguardar enriquecimento
-print("[2] Aguardando enriquecimento (30s)...")
-time.sleep(30)
-
-# 3. Obter dados
-print("[3] Obtendo dados enriquecidos...")
-resp = requests.get(f"{BASE_URL}/hanzi-api/hanzi/故")
-data = resp.json()
-print(f"    Significado: {data['meaning'][:50] if data['meaning'] else '(vazio)'}")
-print(f"    Decomposição: {data['decomposition'][:50] if data['decomposition'] else '(vazio)'}")
-print(f"    Aparece em: {data['appears_in'][:50] if data['appears_in'] else '(vazio)'}")
-print(f"    Palavras relacionadas: {data['related_words'][:50] if data['related_words'] else '(vazio)'}")
-print(f"    Chamadas: {data['calls']}")
-```
-
----
+**Recomendação de polling:** delay inicial de 10–15s, backoff até 60s, desistir após ~120s.
 
 ## 🔧 Configuração de proxy corporativo
 
-Se a API rodar atrás de um proxy SSL-intercepting (corporate proxy):
-
-1. Defina a variável de ambiente **antes** de iniciar o container:
-   ```bash
-   SSL_VERIFY=false docker-compose up hanzi_app
-   ```
-
-2. Ou adicione ao `.env`:
-   ```
-   SSL_VERIFY=false
-   ```
-
-3. Ou no `docker-compose.yml`:
-   ```yaml
-   environment:
-     SSL_VERIFY: "false"
-   ```
-
-Sem isso, DeepSeek e HanziCraft retornarão `SSL: CERTIFICATE_VERIFY_FAILED`.
-
----
-
-## 📋 Referência rápida de endpoints
-
-```
-POST   /hanzi-api/hanzi                     → Criar hanzi (dispara enrich async)
-GET    /hanzi-api/hanzi/{character}         → Obter hanzi
-PUT    /hanzi-api/hanzi/{character}/enrich  → Re-enriquecer
-
-GET    /word-api/word/health                → Health check
-POST   /word-api/word                       → Criar palavra
-GET    /word-api/word/search?q=...          → Buscar palavras
-GET    /word-api/word/{word}                → Obter palavra + traduções
-PUT    /word-api/word/{word}/translations   → Adicionar tradução
-GET    /word-api/word/{word}/translations   → Listar traduções da palavra
-```
-
----
-
-## 🎯 Para outro modelo de IA usar esta API
-
-1. Leia este arquivo inteiro (especialmente "Conceitos-chave" e "Common Patterns")
-2. Consulte [openapi.json](./openapi.json) para estrutura exata de schemas
-3. Implementar polling com backoff para operações async (POST hanzi, PUT enrich)
-4. Sempre validar se campo enriquecido é `""` antes de confiar no dados
-5. Respeitar timeouts (não esperar mais que ~120s por enrich, considerar falha)
+Atrás de proxy com interceptação SSL, defina `SSL_VERIFY=false` (no `.env` ou no
+`docker-compose.yml`) antes de subir o container — sem isso, DeepSeek e HanziCraft
+falham com `SSL: CERTIFICATE_VERIFY_FAILED`. O default é `true` (verificação ativa).

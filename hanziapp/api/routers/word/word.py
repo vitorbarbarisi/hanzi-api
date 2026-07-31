@@ -1,7 +1,6 @@
 from typing import List
 
 from fastapi import BackgroundTasks
-from fastapi.param_functions import Depends
 from fastapi.responses import JSONResponse  # type: ignore
 from fastapi.routing import APIRouter
 
@@ -80,10 +79,10 @@ async def get(word: str, background_tasks: BackgroundTasks):
     item = await word_service.get_with_translations(repo, word_translation_repo, word)
     if not item:
         return JSONResponse(content={"description": "Word not found"}, status_code=404)
-    
+
     # Add background task to increment count using domain service
     background_tasks.add_task(word_service.increment_count, repo, word)
-    
+
     return item
 
 

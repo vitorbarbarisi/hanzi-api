@@ -1,7 +1,4 @@
-from typing import List
-
 from fastapi import BackgroundTasks
-from fastapi.param_functions import Depends
 from fastapi.responses import JSONResponse  # type: ignore
 from fastapi.routing import APIRouter
 

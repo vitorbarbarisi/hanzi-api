@@ -12,6 +12,12 @@ from pydantic import BaseModel, Field
 
 from .config import config
 
+# Shared HTTP client: one per process instead of one per integration
+# instance. Instances were never closed, leaking sockets/file descriptors
+# on every enrichment. httpx.Client is thread-safe.
+_SSL_VERIFY = os.environ.get("SSL_VERIFY", "true").lower() != "false"
+_HTTP_CLIENT = httpx.Client(verify=_SSL_VERIFY)
+
 
 class DecompositionResponse(BaseModel):
     """Structured response model for character decomposition."""
@@ -33,7 +39,6 @@ class DeepSeekIntegration:
         self.llm = None
 
         if self.api_key:
-            ssl_verify = os.environ.get("SSL_VERIFY", "true").lower() != "false"
             self.llm = ChatOpenAI(
                 model="deepseek-chat",
                 base_url="https://api.deepseek.com/v1",
@@ -41,7 +46,7 @@ class DeepSeekIntegration:
                 temperature=0,
                 request_timeout=60,
                 max_retries=2,
-                http_client=httpx.Client(verify=ssl_verify),
+                http_client=_HTTP_CLIENT,
             )
     
     def get_meaning(self) -> str:

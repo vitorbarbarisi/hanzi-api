@@ -1,7 +1,6 @@
 from typing import Optional
 
 from sqlalchemy import func, select, insert, update as sqlalchemy_update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from hanziapp.core.hanzi.entities.hanzi import (
     CreateHanziDto,
@@ -11,8 +10,6 @@ from hanziapp.core.hanzi.entities.hanzi import (
 from hanziapp.infra.database.models.hanzi import Hanzi as HanziModel
 from hanziapp.infra.database.sqlalchemy import get_async_session
 
-cache_hits = 0
-cache_misses = 0
 
 async def exists_by_id(character: str) -> bool:
     async with get_async_session() as session:
@@ -55,7 +52,9 @@ async def update(
         return None
 
     values = dto.dict(exclude_unset=True)
-    
+    if not values:
+        return await fetch(character)
+
     async with get_async_session() as session:
         query = (
             sqlalchemy_update(HanziModel)
@@ -66,3 +65,15 @@ async def update(
         # Session commit is handled by get_async_session context manager
 
     return await fetch(character)
+
+
+async def increment_calls(character: str) -> bool:
+    """Atomically increment the calls counter, safe under concurrency."""
+    async with get_async_session() as session:
+        query = (
+            sqlalchemy_update(HanziModel)
+            .where(HanziModel.c.character == character)
+            .values(calls=func.coalesce(HanziModel.c.calls, 0) + 1)
+        )
+        result = await session.execute(query)
+        return result.rowcount > 0
