@@ -22,10 +22,9 @@ async def get(repo: WordRepo, word: str) -> Optional[Word]:
     return result
 
 
-async def increment_count(repo: WordRepo, word: str) -> bool:
+async def _increment_counter_with_retry(increment_fn, word: str, counter_name: str) -> bool:
     """
-    Domain service to increment the count of a word.
-    Uses an atomic UPDATE so concurrent requests don't lose increments.
+    Run an atomic counter increment, retrying with exponential backoff.
     Returns True if successful, False otherwise
     """
     max_retries = 3
@@ -33,14 +32,24 @@ async def increment_count(repo: WordRepo, word: str) -> bool:
 
     for attempt in range(max_retries):
         try:
-            return await repo.increment_calls(word)
+            return await increment_fn(word)
         except Exception as e:
-            print(f"Attempt {attempt + 1} failed incrementing count for word '{word}': {e}")
+            print(f"Attempt {attempt + 1} failed incrementing {counter_name} for word '{word}': {e}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
-    print(f"Failed to increment count for word '{word}' after {max_retries} attempts")
+    print(f"Failed to increment {counter_name} for word '{word}' after {max_retries} attempts")
     return False
+
+
+async def increment_count(repo: WordRepo, word: str) -> bool:
+    """Domain service to increment the access count of a word."""
+    return await _increment_counter_with_retry(repo.increment_calls, word, "calls")
+
+
+async def increment_text_count(repo: WordRepo, word: str) -> bool:
+    """Domain service to increment the text-context access count of a word."""
+    return await _increment_counter_with_retry(repo.increment_calls_text, word, "calls_text")
 
 
 async def get_with_translations(
@@ -68,6 +77,7 @@ async def get_with_translations(
         pinyin=word_obj.pinyin,
         translation=word_obj.translation,
         calls=word_obj.calls,
+        calls_text=word_obj.calls_text,
         confidence_level=word_obj.confidence_level,
         tone_pair=word_obj.tone_pair,
         translations=translation_strings

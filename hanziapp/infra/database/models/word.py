@@ -11,6 +11,7 @@ Word = Table(
     Column("pinyin", String, nullable=False),
     Column("translation", String, nullable=False),
     Column("calls", Integer, default=0),
+    Column("calls_text", Integer, nullable=False, server_default="0"),
     Column("confidence_level", Integer, nullable=False),
     Column("tone_pair", BigInteger, nullable=True),
     Column("try", String, nullable=True),  # DB-only, not exposed in API/service

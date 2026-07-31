@@ -75,13 +75,17 @@ async def search(q: str):
         404: {"description": "Word not found"},
     },
 )
-async def get(word: str, background_tasks: BackgroundTasks):
+async def get(word: str, background_tasks: BackgroundTasks, text: bool = False):
     item = await word_service.get_with_translations(repo, word_translation_repo, word)
     if not item:
         return JSONResponse(content={"description": "Word not found"}, status_code=404)
 
     # Add background task to increment count using domain service
     background_tasks.add_task(word_service.increment_count, repo, word)
+
+    # When the access came from a text, also increment the text-context counter
+    if text:
+        background_tasks.add_task(word_service.increment_text_count, repo, word)
 
     return item
 

@@ -65,16 +65,24 @@ async def update(
     return await fetch(word)
 
 
-async def increment_calls(word: str) -> bool:
-    """Atomically increment the calls counter, safe under concurrency."""
+async def _increment_counter(word: str, column) -> bool:
+    """Atomically increment a counter column, safe under concurrency."""
     async with get_async_session() as session:
         query = (
             sqlalchemy_update(WordModel)
             .where(WordModel.c.word == word)
-            .values(calls=func.coalesce(WordModel.c.calls, 0) + 1)
+            .values({column: func.coalesce(column, 0) + 1})
         )
         result = await session.execute(query)
         return result.rowcount > 0
+
+
+async def increment_calls(word: str) -> bool:
+    return await _increment_counter(word, WordModel.c.calls)
+
+
+async def increment_calls_text(word: str) -> bool:
+    return await _increment_counter(word, WordModel.c.calls_text)
 
 
 async def search_by_word_like(q: str) -> List[Word]:

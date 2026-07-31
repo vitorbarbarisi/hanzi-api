@@ -247,6 +247,16 @@
               "type": "string",
               "title": "Word"
             }
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Text"
+            }
           }
         ],
         "responses": {
@@ -593,6 +603,11 @@
             "title": "Calls",
             "default": 0
           },
+          "calls_text": {
+            "type": "integer",
+            "title": "Calls Text",
+            "default": 0
+          },
           "confidence_level": {
             "type": "integer",
             "title": "Confidence Level"
@@ -658,6 +673,11 @@
           "calls": {
             "type": "integer",
             "title": "Calls",
+            "default": 0
+          },
+          "calls_text": {
+            "type": "integer",
+            "title": "Calls Text",
             "default": 0
           },
           "confidence_level": {

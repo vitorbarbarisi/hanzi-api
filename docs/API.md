@@ -14,7 +14,7 @@ PUT    /hanzi-api/hanzi/{character}/enrich  → Re-enriquecer (202)
 GET    /word-api/health                     → Health check
 POST   /word-api/                           → Criar palavra
 GET    /word-api/search?q=...               → Buscar palavras
-GET    /word-api/{word}                     → Obter palavra + traduções
+GET    /word-api/{word}[?text=true]         → Obter palavra + traduções
 PUT    /word-api/{word}/translations        → Adicionar tradução
 GET    /word-api/{word}/translations        → Listar traduções da palavra
 ```
@@ -71,17 +71,21 @@ GET    /word-api/{word}/translations        → Listar traduções da palavra
   "pinyin": "ài rén",
   "translation": "lover",
   "calls": 42,
+  "calls_text": 7,
   "confidence_level": 2,
   "tone_pair": 42
 }
 ```
+- `calls`: total de acessos via `GET /word-api/{word}` (incrementado em **toda** chamada)
+- `calls_text`: subconjunto dos acessos que vieram de um texto — incrementado **apenas** quando o GET recebe `?text=true`. Nunca substitui o `calls`; os dois sobem juntos nesse caso.
+
 `CreateWordDto` (POST `/word-api/`):
 ```json
 {"word": "愛人", "pinyin": "ài rén", "translation": "lover", "confidence_level": 2}
 ```
 - `confidence_level`: obrigatório, inteiro 1–3 (validado com 422)
 - `tone_pair`: **derivado automaticamente do pinyin** (um dígito de tom por sílaba, tom neutro = 5; ex.: `"ài rén"` → `42`). Não envie manualmente.
-- `calls`: inicia em 0
+- `calls` e `calls_text`: iniciam em 0; não são aceitos no corpo do POST
 
 ### WordWithTranslations (GET /word-api/{word})
 Campos de `Word` + `translations` como **lista de strings**:
@@ -91,6 +95,7 @@ Campos de `Word` + `translations` como **lista de strings**:
   "pinyin": "ài rén",
   "translation": "lover",
   "calls": 42,
+  "calls_text": 7,
   "confidence_level": 2,
   "tone_pair": 42,
   "translations": ["lover", "sweetheart"]
@@ -136,7 +141,7 @@ def wait_for_enrichment(character, max_attempts=5, initial_delay=15):
 # Criar (note o path: /word-api/ — sem segmento extra)
 POST /word-api/
 {"word": "愛人", "pinyin": "ài rén", "translation": "lover", "confidence_level": 2}
-→ 201 {"word": "愛人", "pinyin": "ài rén", "translation": "lover", "calls": 0, "confidence_level": 2, "tone_pair": 42}
+→ 201 {"word": "愛人", "pinyin": "ài rén", "translation": "lover", "calls": 0, "calls_text": 0, "confidence_level": 2, "tone_pair": 42}
 
 # Adicionar tradução alternativa
 PUT /word-api/愛人/translations
@@ -145,7 +150,11 @@ PUT /word-api/愛人/translations
 
 # Obter palavra + traduções
 GET /word-api/愛人
-→ 200 {..., "translations": ["sweetheart"]}
+→ 200 {..., "calls_text": 7, "translations": ["sweetheart"]}
+
+# Mesmo GET, sinalizando que o acesso veio de um texto:
+# incrementa calls E calls_text (o calls sobe nos dois casos)
+GET /word-api/愛人?text=true
 ```
 
 ### 3. Buscar palavras
@@ -162,6 +171,7 @@ GET /word-api/search?q=love   # sem CJK → busca em translation (case-insensiti
 ## 🔍 Detalhes de comportamento
 
 - **GET /hanzi-api/hanzi/{character}** e **GET /word-api/{word}** incrementam o contador `calls` de forma assíncrona e atômica (não bloqueia a resposta)
+- **GET /word-api/{word}?text=true** incrementa **adicionalmente** o `calls_text`, para registrar que o acesso veio de um texto. O parâmetro é opcional e vale `false` por padrão; o `calls` sobe do mesmo jeito, com ou sem ele. Como os dois incrementos rodam em background após a resposta, o JSON retornado ainda mostra os valores **anteriores** ao incremento desta chamada
 - **GET /hanzi-api/hanzi/{character}** usa cache em memória (por processo); o cache é invalidado em updates
 - **PUT /hanzi-api/hanzi/{character}/enrich** retorna `202` com `{"message": "Enrichment task started", "character": "...", "status": "processing"}`, ou `404` se o hanzi não existe
 - **404s** retornam `{"description": "Hanzi not found"}` / `{"description": "Word not found"}` (o PUT enrich usa `{"error": ..., "character": ...}`)

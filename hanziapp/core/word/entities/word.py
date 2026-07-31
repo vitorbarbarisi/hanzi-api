@@ -78,6 +78,7 @@ class Word(BaseModel):
     pinyin: str
     translation: str
     calls: int = Field(default=0)
+    calls_text: int = Field(default=0)
     confidence_level: int
     tone_pair: Optional[int] = None
 
@@ -127,6 +128,7 @@ class WordWithTranslations(BaseModel):
     pinyin: str
     translation: str
     calls: int = Field(default=0)
+    calls_text: int = Field(default=0)
     confidence_level: int
     tone_pair: Optional[int] = None
     translations: List[str] = Field(default_factory=list)
