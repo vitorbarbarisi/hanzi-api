@@ -7,6 +7,7 @@ from fastapi.routing import APIRouter
 from hanziapp.api.container import get_dependencies
 from hanziapp.core.word.entities.word import (
     CreateWordDto,
+    UpdateWordDto,
     Word,
     WordWithTranslations,
 )
@@ -87,6 +88,25 @@ async def get(word: str, background_tasks: BackgroundTasks, text: bool = False):
     if text:
         background_tasks.add_task(word_service.increment_text_count, repo, word)
 
+    return item
+
+
+@router.patch(
+    "/{word}",
+    response_class=JSONResponse,
+    response_model=Word,
+    status_code=200,
+    responses={
+        200: {"description": "Word updated"},
+        404: {"description": "Word not found"},
+    },
+)
+async def update(word: str, dto: UpdateWordDto):
+    """Partial update: only the fields present in the body change
+    (e.g. {"confidence_level": 3} to mark a word as mastered)."""
+    item = await word_service.update(repo, word, dto)
+    if not item:
+        return JSONResponse(content={"description": "Word not found"}, status_code=404)
     return item
 
 

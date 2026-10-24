@@ -4,6 +4,7 @@ from typing import Optional, List
 
 from hanziapp.core.word.entities.word import (
     CreateWordDto,
+    UpdateWordDto,
     Word,
     WordWithTranslations,
 )
@@ -20,6 +21,11 @@ async def create(
 async def get(repo: WordRepo, word: str) -> Optional[Word]:
     result = await repo.fetch(word)
     return result
+
+
+async def update(repo: WordRepo, word: str, dto: UpdateWordDto) -> Optional[Word]:
+    """Update only the fields sent in the dto; None if the word doesn't exist."""
+    return await repo.update(dto, word)
 
 
 async def _increment_counter_with_retry(increment_fn, word: str, counter_name: str) -> bool:
