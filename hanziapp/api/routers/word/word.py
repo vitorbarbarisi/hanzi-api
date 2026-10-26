@@ -49,8 +49,16 @@ async def health_check():
     status_code=201,
     responses={201: {"description": "Word created"}},
 )
-async def create(dto: CreateWordDto):
-    return await word_service.create(repo, dto)
+async def create(dto: CreateWordDto, background_tasks: BackgroundTasks, text: bool = False):
+    item = await word_service.create(repo, dto)
+
+    # When the word was created from a text, seed the text-context counter --
+    # mirrors the `text` flag on GET so a word born from a txt is already
+    # attributed to text, not only from its second access onwards.
+    if text:
+        background_tasks.add_task(word_service.increment_text_count, repo, dto.word)
+
+    return item
 
 
 @router.get(
