@@ -84,13 +84,16 @@ async def search(q: str):
         404: {"description": "Word not found"},
     },
 )
-async def get(word: str, background_tasks: BackgroundTasks, text: bool = False):
+async def get(word: str, background_tasks: BackgroundTasks, text: bool = False,
+              count: bool = True):
     item = await word_service.get_with_translations(repo, word_translation_repo, word)
     if not item:
         return JSONResponse(content={"description": "Word not found"}, status_code=404)
 
-    # Add background task to increment count using domain service
-    background_tasks.add_task(word_service.increment_count, repo, word)
+    # `count=false` reads the word without bumping `calls`, for clients (like
+    # visim) that look words up for display rather than real usage.
+    if count:
+        background_tasks.add_task(word_service.increment_count, repo, word)
 
     # When the access came from a text, also increment the text-context counter
     if text:
