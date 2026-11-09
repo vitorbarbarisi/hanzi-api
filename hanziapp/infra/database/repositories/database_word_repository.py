@@ -1,12 +1,13 @@
 from typing import Optional, List
 
-from sqlalchemy import func, select, insert, update as sqlalchemy_update, or_
+from sqlalchemy import case, func, select, insert, update as sqlalchemy_update, or_
 
 from hanziapp.core.word.entities.word import (
     CreateWordDto,
     Word,
     UpdateWordDto,
 )
+from hanziapp.core.word.services.word_progress import CONFIDENCE_MILESTONES
 from hanziapp.infra.database.models.word import Word as WordModel
 from hanziapp.infra.database.models.word_translation import WordTranslation as WordTranslationModel
 from hanziapp.infra.database.sqlalchemy import get_async_session
@@ -83,6 +84,29 @@ async def increment_calls(word: str) -> bool:
 
 async def increment_calls_text(word: str) -> bool:
     return await _increment_counter(word, WordModel.c.calls_text)
+
+
+async def add_correct(word: str, amount: int) -> Optional[Word]:
+    """Atomically add correct answers and raise confidence_level to the level
+    the new total has earned -- never lowering it. One UPDATE, so concurrent
+    calls neither lose increments nor race on the level."""
+    new_total = func.coalesce(WordModel.c.correct_count, 0) + amount
+    earned = case(
+        *[(new_total >= at, level) for at, level in CONFIDENCE_MILESTONES],
+        else_=WordModel.c.confidence_level,
+    )
+    async with get_async_session() as session:
+        query = (
+            sqlalchemy_update(WordModel)
+            .where(WordModel.c.word == word)
+            .values(
+                correct_count=new_total,
+                confidence_level=func.greatest(WordModel.c.confidence_level, earned),
+            )
+            .returning(*WordModel.c)
+        )
+        row = (await session.execute(query)).first()
+        return Word.parse_obj(dict(row._mapping)) if row else None
 
 
 async def search_by_word_like(q: str) -> List[Word]:

@@ -25,6 +25,9 @@ class WordRepo(Protocol):
     async def increment_calls_text(self, word: str) -> bool:
         ...
 
+    async def add_correct(self, word: str, amount: int) -> Optional[Word]:
+        ...
+
     async def search_by_word_like(self, q: str) -> List[Word]:
         ...
 

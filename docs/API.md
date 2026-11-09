@@ -15,6 +15,7 @@ GET    /word-api/health                     → Health check
 POST   /word-api/                           → Criar palavra
 GET    /word-api/search?q=...               → Buscar palavras
 GET    /word-api/{word}[?text=true]         → Obter palavra + traduções
+POST   /word-api/{word}/correct             → Registrar acertos de treino (correct_count)
 PUT    /word-api/{word}/translations        → Adicionar tradução
 GET    /word-api/{word}/translations        → Listar traduções da palavra
 ```
@@ -72,12 +73,14 @@ GET    /word-api/{word}/translations        → Listar traduções da palavra
   "translation": "lover",
   "calls": 42,
   "calls_text": 7,
+  "correct_count": 12,
   "confidence_level": 2,
   "tone_pair": 42
 }
 ```
 - `calls`: total de acessos via `GET /word-api/{word}` (incrementado em **toda** chamada)
 - `calls_text`: subconjunto dos acessos que vieram de um texto — incrementado **apenas** quando o GET recebe `?text=true`. Nunca substitui o `calls`; os dois sobem juntos nesse caso.
+- `correct_count`: acertos de escrita no treino (visim), somados via `POST /word-api/{word}/correct`. Ao atingir **10** o `confidence_level` sobe para 2 e ao atingir **20** para 3 — nunca desce.
 
 `CreateWordDto` (POST `/word-api/`):
 ```json
@@ -85,7 +88,7 @@ GET    /word-api/{word}/translations        → Listar traduções da palavra
 ```
 - `confidence_level`: obrigatório, inteiro 1–3 (validado com 422)
 - `tone_pair`: **derivado automaticamente do pinyin** (um dígito de tom por sílaba, tom neutro = 5; ex.: `"ài rén"` → `42`). Não envie manualmente.
-- `calls` e `calls_text`: iniciam em 0; não são aceitos no corpo do POST
+- `calls`, `calls_text` e `correct_count`: iniciam em 0; não são aceitos no corpo do POST
 
 ### WordWithTranslations (GET /word-api/{word})
 Campos de `Word` + `translations` como **lista de strings**:
@@ -96,6 +99,7 @@ Campos de `Word` + `translations` como **lista de strings**:
   "translation": "lover",
   "calls": 42,
   "calls_text": 7,
+  "correct_count": 12,
   "confidence_level": 2,
   "tone_pair": 42,
   "translations": ["lover", "sweetheart"]
@@ -155,6 +159,12 @@ GET /word-api/愛人
 # Mesmo GET, sinalizando que o acesso veio de um texto:
 # incrementa calls E calls_text (o calls sobe nos dois casos)
 GET /word-api/愛人?text=true
+
+# Registrar acertos de treino (corpo opcional; amount padrão 1, mínimo 1)
+# Atômico e síncrono: devolve o Word com o novo total. 404 se a palavra não existe.
+POST /word-api/愛人/correct
+{"amount": 3}
+→ 200 {..., "correct_count": 15, "confidence_level": 2}
 ```
 
 ### 3. Buscar palavras

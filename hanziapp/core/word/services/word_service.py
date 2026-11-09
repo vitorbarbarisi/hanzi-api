@@ -58,6 +58,14 @@ async def increment_text_count(repo: WordRepo, word: str) -> bool:
     return await _increment_counter_with_retry(repo.increment_calls_text, word, "calls_text")
 
 
+async def register_correct(repo: WordRepo, word: str, amount: int) -> Optional[Word]:
+    """Add correct answers to a word, raising its confidence at the milestones.
+
+    None if the word doesn't exist.
+    """
+    return await repo.add_correct(word, amount)
+
+
 async def get_with_translations(
     word_repo: WordRepo, 
     translation_repo: WordTranslationRepo, 
@@ -84,6 +92,7 @@ async def get_with_translations(
         translation=word_obj.translation,
         calls=word_obj.calls,
         calls_text=word_obj.calls_text,
+        correct_count=word_obj.correct_count,
         confidence_level=word_obj.confidence_level,
         tone_pair=word_obj.tone_pair,
         translations=translation_strings

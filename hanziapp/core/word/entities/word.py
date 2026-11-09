@@ -79,6 +79,7 @@ class Word(BaseModel):
     translation: str
     calls: int = Field(default=0)
     calls_text: int = Field(default=0)
+    correct_count: int = Field(default=0)
     confidence_level: int
     tone_pair: Optional[int] = None
 
@@ -123,12 +124,27 @@ class UpdateWordDto(BaseModel):
         allow_mutation = False
 
 
+class RegisterCorrectDto(BaseModel):
+    """Correct answers to add to a word (POST /word-api/{word}/correct)."""
+    amount: int = 1
+
+    @validator('amount')
+    def validate_amount(cls, v):
+        if v < 1:
+            raise ValueError('amount must be at least 1')
+        return v
+
+    class Config:
+        allow_mutation = False
+
+
 class WordWithTranslations(BaseModel):
     word: str
     pinyin: str
     translation: str
     calls: int = Field(default=0)
     calls_text: int = Field(default=0)
+    correct_count: int = Field(default=0)
     confidence_level: int
     tone_pair: Optional[int] = None
     translations: List[str] = Field(default_factory=list)

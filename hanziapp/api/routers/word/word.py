@@ -7,6 +7,7 @@ from fastapi.routing import APIRouter
 from hanziapp.api.container import get_dependencies
 from hanziapp.core.word.entities.word import (
     CreateWordDto,
+    RegisterCorrectDto,
     UpdateWordDto,
     Word,
     WordWithTranslations,
@@ -116,6 +117,26 @@ async def update(word: str, dto: UpdateWordDto):
     """Partial update: only the fields present in the body change
     (e.g. {"confidence_level": 3} to mark a word as mastered)."""
     item = await word_service.update(repo, word, dto)
+    if not item:
+        return JSONResponse(content={"description": "Word not found"}, status_code=404)
+    return item
+
+
+@router.post(
+    "/{word}/correct",
+    response_class=JSONResponse,
+    response_model=Word,
+    status_code=200,
+    responses={
+        200: {"description": "Correct answers added"},
+        404: {"description": "Word not found"},
+    },
+)
+async def register_correct(word: str, dto: RegisterCorrectDto = RegisterCorrectDto()):
+    """Add `amount` correct answers (default 1) to the word's correct_count.
+    Reaching 10 raises confidence_level to 2 and 20 to 3; it never goes down.
+    Synchronous, so the caller gets the new total back."""
+    item = await word_service.register_correct(repo, word, dto.amount)
     if not item:
         return JSONResponse(content={"description": "Word not found"}, status_code=404)
     return item

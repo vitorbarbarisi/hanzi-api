@@ -157,15 +157,27 @@
       "post": {
         "summary": "Create",
         "operationId": "create_word_api__post",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Text"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateWordDto"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -257,6 +269,16 @@
               "default": false,
               "title": "Text"
             }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Count"
+            }
           }
         ],
         "responses": {
@@ -266,6 +288,112 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WordWithTranslations"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Word not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update",
+        "description": "Partial update: only the fields present in the body change\n(e.g. {\"confidence_level\": 3} to mark a word as mastered).",
+        "operationId": "update_word_api__word__patch",
+        "parameters": [
+          {
+            "name": "word",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Word"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Word updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Word"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Word not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/word-api/{word}/correct": {
+      "post": {
+        "summary": "Register Correct",
+        "description": "Add `amount` correct answers (default 1) to the word's correct_count.\nReaching 10 raises confidence_level to 2 and 20 to 3; it never goes down.\nSynchronous, so the caller gets the new total back.",
+        "operationId": "register_correct_word_api__word__correct_post",
+        "parameters": [
+          {
+            "name": "word",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Word"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterCorrectDto",
+                "default": {
+                  "amount": 1
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Correct answers added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Word"
                 }
               }
             }
@@ -551,6 +679,79 @@
         ],
         "title": "Hanzi"
       },
+      "RegisterCorrectDto": {
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "title": "Amount",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "RegisterCorrectDto",
+        "description": "Correct answers to add to a word (POST /word-api/{word}/correct)."
+      },
+      "UpdateWordDto": {
+        "properties": {
+          "pinyin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinyin"
+          },
+          "translation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translation"
+          },
+          "calls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls"
+          },
+          "confidence_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence Level"
+          },
+          "tone_pair": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone Pair"
+          }
+        },
+        "type": "object",
+        "title": "UpdateWordDto"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -606,6 +807,11 @@
           "calls_text": {
             "type": "integer",
             "title": "Calls Text",
+            "default": 0
+          },
+          "correct_count": {
+            "type": "integer",
+            "title": "Correct Count",
             "default": 0
           },
           "confidence_level": {
@@ -680,6 +886,11 @@
             "title": "Calls Text",
             "default": 0
           },
+          "correct_count": {
+            "type": "integer",
+            "title": "Correct Count",
+            "default": 0
+          },
           "confidence_level": {
             "type": "integer",
             "title": "Confidence Level"
@@ -713,11 +924,5 @@
         "title": "WordWithTranslations"
       }
     }
-  },
-  "servers": [
-    {
-      "url": "http://localhost:7998",
-      "description": "Development server"
-    }
-  ]
+  }
 }
