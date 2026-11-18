@@ -34,6 +34,7 @@ RUN poetry lock && poetry install
 # Copy application code
 COPY hanziapp/ ./hanziapp/
 COPY scripts/ ./scripts/
+COPY alembic.ini .
 
 # Expose ports
 EXPOSE 5000
