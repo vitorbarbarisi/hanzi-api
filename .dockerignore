@@ -66,5 +66,3 @@ htmlcov/
 # Poetry virtual env
 .venv/
 
-# Alembic
-alembic.ini
